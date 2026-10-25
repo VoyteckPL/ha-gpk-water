@@ -9,7 +9,7 @@ import statistics
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from . import meters, notify, state
+from . import ha_out, meters, notify, state
 
 log = logging.getLogger("gpk.notifications")
 
@@ -215,3 +215,18 @@ def check_sync(store, now: datetime | None = None):
     if st.get("last_error") and st.get("last_ok") is None and st.get("last_run"):
         emit(store, "sync_problem", "Synchronizacja poczty nie działa", str(st["last_error"])[:300],
              "sync:" + datetime.now(_tz()).strftime("%Y-%m-%d"), now)
+
+
+def list_services() -> list[dict]:
+    """Usługi notify.* z HA (telefony z aplikacją, grupy, Telegram itd.). Puste, gdy HA niedostępne."""
+    res = ha_out.ws_batch([{"type": "get_services"}])
+    if not res or not isinstance(res[0], dict):
+        return []
+    out = []
+    for name, d in (res[0].get("notify") or {}).items():
+        if name in ("send_message", "persistent_notification"):
+            continue
+        label = (d or {}).get("name") or name
+        out.append(dict(service="notify." + name, name=name, mobile=name.startswith("mobile_app_")))
+    out.sort(key=lambda x: (not x["mobile"], x["name"]))
+    return out

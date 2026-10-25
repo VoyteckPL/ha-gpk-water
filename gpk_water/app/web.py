@@ -125,6 +125,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(readings.status(self.store))
         if path == "api/readings/preview":
             return self._json(readings.preview(self.store, self.opts.get("gmail_user", "")))
+        if path == "api/notifications/services":
+            return self._json(notifications.list_services())
         if path == "api/notifications":
             return self._json(dict(settings=notifications.get_settings(), log=self.store.notifications(),
                                    events={k: dict(name=v[0], desc=v[1], params=list(v[3])) for k, v in notifications.EVENTS.items()}))

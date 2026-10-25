@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.1
+- Powiadomienia: usługa telefonu wybierana z listy usług notify z Home Assistant (telefony z aplikacją na górze).
+
 ## 0.5.0
 - Przegląd: nowe filtry. Domyślnie bieżący rok, kliknięcie kolejnych lat włącza porównanie lat (koszt i zużycie wg miesięcy), „Wszystkie" pokazuje całą historię. Usunięto „Na 30 dni" i zakresy 12/24 mies.
 - Odczyty: odbiorcy wybierani osobno (GPK Szemud, dodatkowe adresy, kopia na konto dodatku), temat „Stan liczników wody" + adres, stany liczników z jednym miejscem po przecinku.

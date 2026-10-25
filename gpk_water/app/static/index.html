@@ -528,8 +528,9 @@ function renderAll(){
 
 const EV_PARAM={percent:["próg:","% ponad średnią"],factor:["próg:","× typowy dzień"],min_m3:["i co najmniej","m³"],days:["po","dniach"]};
 async function renderNotif(){
-  const el=$("#t-nt"); let R;
+  const el=$("#t-nt"); let R,SV=[];
   try{R=await (await fetch("api/notifications")).json()}catch(e){el.innerHTML='<div class="card">Brak połączenia z dodatkiem</div>';return}
+  try{SV=await (await fetch("api/notifications/services")).json()}catch(e){}
   const s=R.settings;
   const rows=Object.entries(R.events).map(([k,e])=>{const v=s.events[k];
     const pr=e.params.map(p=>`<span class="hint" style="margin:0">${EV_PARAM[p][0]} <input type="number" step="any" data-ev="${k}" data-p="${p}" value="${v[p]}" style="width:70px"> ${EV_PARAM[p][1]}</span>`).join(" ");
@@ -537,7 +538,7 @@ async function renderNotif(){
   const log=R.log.map(l=>`<tr><td>${esc(new Date(l.at*1000).toLocaleString("pl-PL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))}</td><td>${esc(R.events[l.kind]?R.events[l.kind].name:l.kind)}</td><td>${esc(l.title)}${l.message?'<div class="hint" style="margin:2px 0 0;white-space:pre-line">'+esc(l.message)+"</div>":""}</td></tr>`).filter((_,i)=>R.log[i].kind!=="seed").join("");
   el.innerHTML=`<div class="card"><h2>Powiadomienia</h2>
   <p class="hint">Dodatek daje znać w HA (powiadomienie trwałe), opcjonalnie na telefon oraz zdarzeniem <code>gpk_water_event</code> dla Twoich automatyzacji.</p>
-  <div class="form"><label>Telefon (usługa notify)</label><div><input id="n_svc" value="${esc(s.notify_service)}" placeholder="notify.mobile_app_twoj_telefon" style="width:100%"></div>
+  <div class="form"><label>Telefon (usługa notify)</label><div><select id="n_svc" style="width:100%"><option value="">Bez telefonu (tylko powiadomienie w HA)</option>${SV.map(x=>`<option value="${esc(x.service)}" ${x.service===s.notify_service?"selected":""}>${x.mobile?"📱 ":""}${esc(x.name)}</option>`).join("")}${s.notify_service&&!SV.some(x=>x.service===s.notify_service)?`<option value="${esc(s.notify_service)}" selected>${esc(s.notify_service)} (niedostępna)</option>`:""}</select>${SV.length?"":'<div class="hint" style="margin:4px 0 0">Nie udało się pobrać listy z HA, spróbuj odświeżyć.</div>'}</div>
   <label>Powiadomienie w HA</label><div><input type="checkbox" id="n_per" ${s.persistent?"checked":""}></div>
   <label>Cisza nocna</label><div><label class="chk"><input type="checkbox" id="n_q" ${s.quiet?"checked":""}> bez telefonu od <input type="time" id="n_qf" value="${esc(s.quiet_from)}"> do <input type="time" id="n_qt" value="${esc(s.quiet_to)}"></label></div></div>
   <h2 style="margin-top:16px">Kiedy dać znać</h2>${rows}
