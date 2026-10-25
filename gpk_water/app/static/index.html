@@ -322,7 +322,10 @@ async function renderMeters(){
       ${t("Ogród",nf(e.cost_garden),"zł",`${nf(e.m3_garden,2)} m³`,"--c-garden","🌿")}
       ${t("Następna faktura",nf(e.next_invoice,0),"zł",`szacunek na ${e.typical_days} dni`,"--c-cost","🧾")}
       ${t("Tempo (14 dni)",e.l_per_day!=null?nf(e.l_per_day,0):"–","l/dobę","dom + ogród","--c-avg","💧")}</div>
-      <div class="card cc" style="margin-top:14px;--kc:var(--c-home)"><h2>Zużycie dzienne</h2><p class="hint">Z liczników w HA (od ${fmtD(M.history_from)}), ostatnie 60 dni.</p><div class="chartbox"><canvas id="cm"></canvas></div></div>
+      <div class="card cc" style="margin-top:14px;--kc:var(--c-home)"><h2>Zużycie z liczników</h2><p class="hint">Dane z HA od ${fmtD(M.history_from)}.</p>
+        <div class="filters" style="position:static;padding:0;margin-bottom:10px"><div class="seg" id="mrange">${[["7","7 dni"],["30","30 dni"],["month","Ten miesiąc"],["prev","Poprzedni"],["90","90 dni"],["365","Rok"],["all","Wszystko"]].map(([k,l])=>`<button data-r="${k}">${l}</button>`).join("")}</div>
+        <div class="seg" id="mgroup"><button data-g="day">Dni</button><button data-g="week">Tygodnie</button><button data-g="month">Miesiące</button></div></div>
+        <div class="hint" id="msum"></div><div class="chartbox"><canvas id="cm"></canvas></div></div>
       <div class="card cc" style="margin-top:14px;--kc:var(--c-sewage)"><h2>Kontrola: licznik vs faktura</h2>
         <p class="hint">Porównanie zużycia z Twoich liczników z odczytem gminy za ten sam okres. Różnice kilku procent są normalne (godzina odczytu, szacunki gminy).</p>
         ${acc.length?`<div class="tscroll"><table><thead><tr><th class="l">Faktura</th><th>Okres</th><th>Główny: faktura / HA (m³)</th>${acc[0].inv_sub!=null?"<th>Ogród: faktura / HA (m³)</th>":""}</tr></thead><tbody>
@@ -334,13 +337,39 @@ async function renderMeters(){
     if(!r.ok){$("#mmsg").textContent=await r.text();b.textContent="Zapisz i przelicz";return}
     renderMeters()};
   if(M.configured&&e&&M.daily){
-    const D=M.daily.slice(-60);
-    const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y("m³ / dobę","m3")};
-    o.plugins.tooltip.callbacks={title:i=>fmtD(D[i[0].dataIndex].d),label:c=>`${c.dataset.label}: ${nf(c.parsed.y*1000,0)} l`};
-    mk("cm",{type:"bar",data:{labels:D.map(x=>x.d.slice(8)+"."+x.d.slice(5,7)),datasets:[
-      {label:"Dom",data:D.map(x=>x.home),backgroundColor:css("--c-home"),stack:"s"},
-      {label:"Ogród",data:D.map(x=>x.sub),backgroundColor:css("--c-garden"),stack:"s"}]},options:o});
+    METD=M;
+    $("#mrange").onclick=x=>{const r=x.target.dataset.r;if(!r)return;MR.range=r;MR.group=r==="all"||r==="365"?"month":r==="90"?"week":"day";drawMet()};
+    $("#mgroup").onclick=x=>{const g=x.target.dataset.g;if(!g)return;MR.group=g;drawMet()};
+    drawMet();
   }
+}
+let METD=null, MR={range:"30",group:"day"};
+function drawMet(){
+  const M=METD; if(!M||!M.daily||!$("#cm")) return;
+  document.querySelectorAll("#mrange button").forEach(b=>b.classList.toggle("on",b.dataset.r===MR.range));
+  document.querySelectorAll("#mgroup button").forEach(b=>b.classList.toggle("on",b.dataset.g===MR.group));
+  const last=new Date(M.daily[M.daily.length-1].d+"T12:00:00"), iso=d=>d.toISOString().slice(0,10);
+  const shift=n=>{const d=new Date(last);d.setDate(d.getDate()-n+1);return iso(d)};
+  let from="0000", to="9999";
+  if(MR.range==="month") from=iso(new Date(last.getFullYear(),last.getMonth(),1,12));
+  else if(MR.range==="prev"){from=iso(new Date(last.getFullYear(),last.getMonth()-1,1,12));to=iso(new Date(last.getFullYear(),last.getMonth(),0,12))}
+  else if(MR.range!=="all") from=shift(+MR.range);
+  const rows=M.daily.filter(r=>r.d>=from&&r.d<=to);
+  const key=d=>{ if(MR.group==="month") return d.slice(0,7);
+    if(MR.group==="week"){const x=new Date(d+"T12:00:00");x.setDate(x.getDate()-((x.getDay()+6)%7));return iso(x)} return d};
+  const g={}; rows.forEach(r=>{const k=key(r.d);(g[k]=g[k]||{home:0,sub:0,n:0});g[k].home+=r.home;g[k].sub+=r.sub;g[k].n++});
+  const ks=Object.keys(g).sort();
+  const lab=k=>MR.group==="month"?k.slice(5)+"."+k.slice(2,4):k.slice(8)+"."+k.slice(5,7);
+  const tH=rows.reduce((s,r)=>s+r.home,0), tS=rows.reduce((s,r)=>s+r.sub,0), n=rows.length||1, p=M.estimate.prices;
+  $("#msum").innerHTML=rows.length?`<b>${nf(tH+tS,1)} m³</b> (dom ${nf(tH,1)} + ogród ${nf(tS,1)}) · średnio <b>${nf((tH+tS)/n*1000,0)} l/dobę</b> · koszt wg obecnych cen ≈ <b>${zl(tH*(p.water+p.sewage)+tS*p.water)}</b> (bez abonamentu) · ${rows.length} dni`:"Brak danych w tym zakresie.";
+  const unit={day:"dobę",week:"tydzień",month:"miesiąc"}[MR.group];
+  const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y("m³ / "+unit,"m3")};
+  o.plugins.tooltip.callbacks={title:i=>{const k=ks[i[0].dataIndex];return MR.group==="month"?k.slice(5)+"."+k.slice(0,4):MR.group==="week"?"tydzień od "+fmtD(k):fmtD(k)},
+    label:c=>`${c.dataset.label}: ${nf(c.parsed.y,2)} m³ (${nf(c.parsed.y*1000,0)} l)`,
+    footer:i=>{const k=ks[i[0].dataIndex],x=g[k];return "Razem "+nf(x.home+x.sub,2)+" m³ · "+nf((x.home+x.sub)/x.n*1000,0)+" l/dobę"}};
+  mk("cm",{type:"bar",data:{labels:ks.map(lab),datasets:[
+    {label:"Dom",data:ks.map(k=>+g[k].home.toFixed(3)),backgroundColor:css("--c-home"),stack:"s"},
+    {label:"Ogród",data:ks.map(k=>+g[k].sub.toFixed(3)),backgroundColor:css("--c-garden"),stack:"s"}]},options:o});
 }
 
 let SORT={k:"t",asc:false}, Q="", YF="all";

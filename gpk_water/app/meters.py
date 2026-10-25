@@ -102,7 +102,7 @@ def compute(invoices: list[dict], settings: dict, raw: dict | None, today: date 
     days = sorted(dm)
     out["history_from"] = days[0].isoformat()
     out["daily"] = [dict(d=d.isoformat(), main=round(dm[d], 4), sub=round(ds.get(d, 0), 4),
-                         home=round(max(dm[d] - ds.get(d, 0), 0), 4)) for d in days[-90:]]
+                         home=round(max(dm[d] - ds.get(d, 0), 0), 4)) for d in days]
 
     if not invoices:
         return out

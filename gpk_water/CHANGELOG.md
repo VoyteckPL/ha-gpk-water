@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.3.3
+- Zakładka Liczniki: wybór zakresu (7 dni, 30 dni, ten miesiąc, poprzedni, 90 dni, rok, wszystko) i grupowania (dni, tygodnie, miesiące) oraz podsumowanie zakresu.
+
 ## 0.3.2
 - Logo i ikona dodatku w sklepie HA, ten changelog.
 
