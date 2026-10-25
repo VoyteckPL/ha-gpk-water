@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS seen_mail (
 
 class Store:
     def __init__(self, path: str):
-        self.db = sqlite3.connect(path)
+        self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.executescript(SCHEMA)
 
     def has_invoice(self, number: str) -> bool:
