@@ -10,11 +10,11 @@ log = logging.getLogger("gpk.ha")
 
 DEV = {"identifiers": ["gpk_water"], "name": "GPK Szemud - woda", "manufacturer": "GPK Szemud", "model": "eBOK faktury"}
 PLN = "PLN"
+REMOVED = ["last_payable"]
 
 # klucz, nazwa, jednostka, device_class, state_class, ikona
 SENSORS = [
     ("last_invoice_gross", "Ostatnia faktura", PLN, "monetary", None, "mdi:receipt-text"),
-    ("last_payable", "Do zapłaty (z odsetkami)", PLN, "monetary", None, "mdi:cash-clock"),
     ("last_number", "Numer ostatniej faktury", None, None, None, "mdi:numeric"),
     ("last_issue_date", "Data ostatniej faktury", None, "date", None, "mdi:calendar"),
     ("last_due_date", "Termin płatności", None, "date", None, "mdi:calendar-alert"),
@@ -40,6 +40,8 @@ def publish(host, port, user, password, values: dict, prefix="homeassistant"):
         c.username_pw_set(user, password)
     c.connect(host, port, 30)
     c.loop_start()
+    for old in REMOVED:  # usuń encje wycofane z dodatku
+        c.publish(f"{prefix}/sensor/gpk_water/{old}/config", "", retain=True)
     for key, name, unit, dclass, sclass, icon in SENSORS:
         cfg = {
             "name": name, "unique_id": f"gpk_water_{key}",

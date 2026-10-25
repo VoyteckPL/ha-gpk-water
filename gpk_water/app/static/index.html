@@ -278,7 +278,7 @@ function renderOverview(){
   $("#t-over").innerHTML=`
   <div class="grid kpis">
     ${kpi("Ostatnia faktura",nf(L.invoice_gross),"zł",`${esc(L.number)} · ${fmtD(L.issue_date)}`)}
-    ${kpi("Do zapłaty",nf(L.payable),"zł",L.interest_amount?`w tym odsetki ${zl(L.interest_amount)}`:"termin "+fmtD(L.due_date))}
+    ${kpi("Termin płatności",fmtD(L.due_date),"",L.interest_amount?`nota odsetkowa ${zl(L.interest_amount)}`:"wg ostatniej faktury")}
     ${kpi("Cena wody",nf(L.wp,2),"zł/m³",arrow(pct(L.wp,P?P.wp:null))+" vs poprzednia")}
     ${kpi("Cena ścieków",nf(L.sp,2),"zł/m³",arrow(pct(L.sp,P?P.sp:null))+" vs poprzednia")}
     ${kpi("Realny koszt 1 m³ (dom)",nf(L.perM3,2),"zł/m³","woda + ścieki + abonament")}
@@ -359,7 +359,7 @@ function tbl(){
       <div>Pozycje</div><div>${i.items.map(x=>`${esc(x.name)}: ${nf(x.qty,0)} ${esc(x.unit)} × ${nf(x.price_net)} = ${nf(x.gross)} zł brutto`).join("<br>")}</div>
       <div>Netto / VAT / brutto</div><div>${nf(i.net_total)} / ${nf(i.vat_total)} / ${nf(i.invoice_gross)} zł (VAT ${i.vat_rate}%)</div>
       <div>Termin płatności</div><div>${fmtD(i.due_date)}</div>
-      ${i.interest_amount?`<div>Nota odsetkowa</div><div>${esc(i.interest_note)}: ${zl(i.interest_amount)} (do zapłaty ${zl(i.payable)})</div>`:""}
+      ${i.interest_amount?`<div>Nota odsetkowa</div><div>${esc(i.interest_note)}: ${zl(i.interest_amount)}</div>`:""}
       ${i.warnings&&i.warnings.length?`<div>Ostrzeżenia</div><div class="up">${i.warnings.map(esc).join("<br>")}</div>`:""}</div></td>`;tr.after(d)};
   const s=(f)=>r.reduce((a,i)=>a+(f(i)||0),0);
   $("#tf").innerHTML=`<tr><td>Razem (${r.length})</td><td></td><td>${s(i=>i.days)}</td><td>${nf(s(i=>i.water_home_m3),0)}</td><td>${nf(s(i=>i.water_garden_m3),0)}</td><td>${nf(s(i=>i.invoice_gross))}</td><td></td><td></td><td></td><td>${nf(s(i=>i.interest_amount))}</td><td></td></tr>`;
@@ -378,7 +378,7 @@ cards:
   - type: entities
     title: Woda – GPK Szemud
     entities:
-${["last_invoice_gross","last_payable","last_due_date","water_price_gross","sewage_price_gross","home_cost_per_m3","monthly_avg_12m"].map(k=>pick(k)).filter(Boolean).map(e=>"      - "+e).join("\n")}
+${["last_invoice_gross","last_due_date","water_price_gross","sewage_price_gross","home_cost_per_m3","monthly_avg_12m"].map(k=>pick(k)).filter(Boolean).map(e=>"      - "+e).join("\n")}
   - type: statistics-graph
     title: Koszt wody – faktury
     chart_type: bar

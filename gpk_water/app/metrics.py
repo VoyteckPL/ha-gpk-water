@@ -30,7 +30,6 @@ def compute(invoices: list[dict]) -> dict:
     home_m3 = last["water_home_m3"]
     return dict(
         last_invoice_gross=last["invoice_gross"],
-        last_payable=last["payable"],
         last_number=last["number"],
         last_issue_date=last["issue_date"],
         last_due_date=last["due_date"],
