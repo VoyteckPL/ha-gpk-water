@@ -1,6 +1,8 @@
 """Panel (ingress) w pasku bocznym HA: lista faktur i pobieranie nieudanych PDF-ów."""
 import html
+import io
 import os
+import zipfile
 import threading
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -32,6 +34,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = unquote(self.path.split("?")[0]).strip("/")
+        if path == "failed.zip":
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                for n in (sorted(os.listdir(FAILED_DIR)) if os.path.isdir(FAILED_DIR) else []):
+                    z.write(os.path.join(FAILED_DIR, n), n)
+            return self._send(200, buf.getvalue(), "application/zip",
+                              {"Content-Disposition": 'attachment; filename="gpk_nieodczytane.zip"'})
         if path.startswith("failed/"):
             name = os.path.basename(path[7:])
             fp = os.path.join(FAILED_DIR, name)
@@ -47,7 +56,7 @@ class Handler(BaseHTTPRequestHandler):
         links = "".join(f'<li><a href="failed/{quote(n)}">{html.escape(n)}</a></li>' for n in failed) or "<li>brak</li>"
         page = (f"<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>"
                 f"<style>{STYLE}</style><h2>Faktury za wodę</h2><h3>Nieodczytane PDF-y (do wysłania Claude'owi)</h3>"
-                f"<ul>{links}</ul><h3>Sparsowane faktury</h3><table><tr><th>Nr</th><th>Data</th><th>Brutto zł</th>"
+                f"<p><a href=\"failed.zip\"><b>Pobierz wszystkie jako ZIP ({len(failed)})</b></a></p><ul>{links}</ul><h3>Sparsowane faktury</h3><table><tr><th>Nr</th><th>Data</th><th>Brutto zł</th>"
                 f"<th>m³ dom+ogród</th></tr>{rows}</table>")
         self._send(200, page.encode())
 
