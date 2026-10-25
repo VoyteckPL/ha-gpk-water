@@ -11,7 +11,7 @@ Czyta maile od `faktury@gpkszemud.pl` z Gmaila (IMAP), parsuje PDF-y (`pdftotext
 4. Start. Przy pierwszym uruchomieniu przejdzie po wszystkich mailach od 2020 r.
 
 ## Panel „Woda GPK” (pasek boczny HA)
-Przegląd (KPI, trend, wnioski), Wykresy (koszt wg składników, trend, ceny, zużycie na dobę, koszt 1 m³, roczne, sezonowość; filtry zakresu i dom/ogród),
+Przegląd (6 kafelków, filtry, wykresy: koszt, zużycie, ceny, tabela rok po roku),
 Faktury (sortowanie, szukanie, szczegóły, PDF, CSV), Encje HA (prawdziwe entity_id z rejestru HA, karta Lovelace) i Status (synchronizacja, nieodczytane PDF-y).
 
 ## Rozdzielenie dom / ogród

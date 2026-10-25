@@ -46,7 +46,7 @@ main{max-width:1180px;margin:0 auto;padding:16px}
 .cols2{grid-template-columns:repeat(auto-fit,minmax(min(100%,520px),1fr))}
 h2{font-size:15.5px;margin:0 0 2px}
 .hint{color:var(--mute);font-size:12.5px;margin:0 0 10px}
-.chartbox{position:relative;height:290px}
+.chartbox{position:relative;height:240px}
 .chartbox.tall{height:340px}
 .card .tools{position:absolute;right:12px;top:10px}
 .card .tools button{background:var(--chip);color:var(--mute);border:0;border-radius:8px;padding:4px 8px;font-size:12px}
@@ -93,7 +93,6 @@ pre{background:var(--chip);border-radius:12px;padding:12px;overflow:auto;font-si
   </div>
   <nav id="nav">
     <button data-t="over" class="on">Przegląd</button>
-    <button data-t="charts">Wykresy</button>
     <button data-t="inv">Faktury</button>
     <button data-t="ent">Encje HA</button>
     <button data-t="stat">Status</button>
@@ -101,7 +100,6 @@ pre{background:var(--chip);border-radius:12px;padding:12px;overflow:auto;font-si
 </div></header>
 <main>
 <section id="t-over"></section>
-<section id="t-charts" class="hide"></section>
 <section id="t-inv" class="hide"></section>
 <section id="t-ent" class="hide"></section>
 <section id="t-stat" class="hide"></section>
@@ -119,7 +117,7 @@ const monthShort = t => new Date(t).toLocaleDateString("pl-PL",{month:"short",ye
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 let DATA=null, INV=[], ENT=null;
-const F = {range:"all", year:"all", home:true, garden:true, norm:true};
+const F = {range:"all", year:"all", home:true, garden:true, norm:false};
 const charts = {};
 
 // ---------- pochodne ----------
@@ -181,146 +179,73 @@ function ds(label,color,data,extra={}){return Object.assign({label,data,borderCo
 const Y = (label,unit)=>({title:{display:true,text:label,color:css("--mute")},ticks:{color:css("--mute"),callback:v=>nf(v,Number.isInteger(v)?0:(unit==="m3"?2:1))},grid:{color:css("--line")+"88"}});
 
 function drawCharts(){
-  const R = filtered();
-  const empty = !R.length;
-  document.querySelectorAll(".chartbox").forEach(b=>b.classList.toggle("hide",false));
-  if(empty) return;
-  const kN = F.norm ? v=>v : v=>v;
-  // 1) koszt wg składników
+  const R = filtered(); if(!R.length) return;
+  // koszt wg składników
   {
     const f = i => F.norm && i.okDays ? 30.4375/i.days : 1;
     const parts=[["Woda – dom","gross_water_home","--c-home",F.home],["Woda – ogród","gross_water_garden","--c-garden",F.garden],
                  ["Ścieki","gross_sewage","--c-sewage",true],["Abonament","gross_abo","--c-abo",true],["Inne","gross_other","--c-other",true]];
-    const labels=R.map(i=>monthShort(i.t));
     const dsets=parts.filter(p=>p[3]&&R.some(i=>i[p[1]]>0)).map(p=>({label:p[0],data:R.map(i=>+(i[p[1]]*f(i)).toFixed(2)),backgroundColor:css(p[2]),stack:"s",borderRadius:2}));
     const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y(F.norm?"zł / 30 dni":"zł / faktura")};
     o.plugins.tooltip.callbacks={footer:items=>"Razem: "+zl(items.reduce((s,x)=>s+x.parsed.y,0)),title:items=>fmtD(R[items[0].dataIndex].issue_date)};
-    mk("c1",{type:"bar",data:{labels,datasets:dsets},options:o});
+    mk("c1",{type:"bar",data:{labels:R.map(i=>monthShort(i.t)),datasets:dsets},options:o});
   }
-  ["", "o"].forEach(sfx=>{ drawTrend(R,"c2"+sfx); drawPrices(R,"c3"+sfx); });
-  // 4) zużycie / dobę
+  drawPrices(R,"c3");
+  // zużycie m3 na fakturę
   {
-    const sets=[]; const rows=R.filter(i=>i.okDays);
-    if(F.home) sets.push({label:"Dom m³/dobę",data:rows.map(i=>({x:i.tmid,y:+i.m3d_home.toFixed(3)})),backgroundColor:css("--c-home")});
-    if(F.garden) sets.push({label:"Ogród m³/dobę",data:rows.map(i=>({x:i.tmid,y:+i.m3d_garden.toFixed(3)})),backgroundColor:css("--c-garden")});
-    const o=timeAxis(chartBase(),R); o.scales.y=Y("m³ / dobę","m3");
-    o.plugins.tooltip.callbacks.label=c=>`${c.dataset.label}: ${nf(c.parsed.y,3)} (${nf(c.parsed.y*1000,0)} l/dobę)`;
-    mk("c4",{type:"bar",data:{datasets:sets.map(s=>({...s,borderRadius:2,barThickness:6}))},options:o});
-  }
-  // 5) realny koszt 1 m3 (dom)
-  {
-    const rows=R.filter(i=>i.perM3!=null&&i.water_home_m3>=3);
-    const o=timeAxis(chartBase(),R); o.scales.y=Y("zł / m³ wody domowej");
-    mk("c5",{type:"line",data:{datasets:[ds("Realny koszt 1 m³ (woda+ścieki+abonament)",css("--c-total"),rows.map(i=>({x:i.t,y:+i.perM3.toFixed(2)})),{fill:true}),
-      ds("Cena woda+ścieki (brutto)",css("--c-sewage"),R.map(i=>({x:i.t,y:+(i.wp+i.sp).toFixed(2)})),{stepped:"before",tension:0,pointRadius:0,borderDash:[5,4]})]},options:o});
-  }
-  // 6) rocznie
-  {
-    const ys=[...new Set(INV.map(i=>i.year))].sort(); const sum=(y,f)=>INV.filter(i=>i.year===y).reduce((s,i)=>s+f(i),0);
-    const o=chartBase(); o.scales.y=Y("zł / rok"); o.scales.y2={position:"right",grid:{drawOnChartArea:false},ticks:{color:css("--mute")},title:{display:true,text:"m³ / rok",color:css("--mute")}};
-    const cnt=y=>INV.filter(i=>i.year===y).length;
-    o.plugins.tooltip.callbacks={afterBody:items=>["Faktur: "+cnt(+items[0].label)]};
-    mk("c6",{type:"bar",data:{labels:ys,datasets:[{label:"Koszt (faktury) zł",data:ys.map(y=>+sum(y,i=>i.invoice_gross).toFixed(2)),backgroundColor:css("--c-total"),borderRadius:4,order:1},
-      {type:"line",label:"Woda dom m³",data:ys.map(y=>+sum(y,i=>i.water_home_m3).toFixed(1)),borderColor:css("--c-home"),backgroundColor:css("--c-home"),yAxisID:"y2",tension:0,cubicInterpolationMode:'monotone',borderWidth:2.5,order:0},
-      {type:"line",label:"Ogród m³",data:ys.map(y=>+sum(y,i=>i.water_garden_m3).toFixed(1)),borderColor:css("--c-garden"),backgroundColor:css("--c-garden"),yAxisID:"y2",tension:0,cubicInterpolationMode:'monotone',borderWidth:2.5,order:0}]},options:o});
-  }
-  // 7) sezonowość
-  {
-    const ys=[...new Set(INV.filter(i=>i.okDays).map(i=>new Date(i.tmid).getFullYear()))].sort();
-    const pal=["#8b95a7","#e0a030","#4caf50","#3b82c4","#8e6bbf","#d64545","#2b3990"];
-    const sets=ys.map((y,k)=>{const arr=Array(12).fill(null),n=Array(12).fill(0);
-      INV.filter(i=>i.okDays&&new Date(i.tmid).getFullYear()===y).forEach(i=>{const m=new Date(i.tmid).getMonth();arr[m]=(arr[m]||0)+((F.home?i.water_home_m3:0)+(F.garden?i.water_garden_m3:0))/i.days;n[m]++});
-      return ds(String(y),pal[k%pal.length],arr.map((v,m)=>v==null?null:+(v/n[m]).toFixed(3)),{spanGaps:true});});
-    const o=chartBase(); o.scales.y=Y("m³ / dobę","m3");
-    mk("c7",{type:"line",data:{labels:["sty","lut","mar","kwi","maj","cze","lip","sie","wrz","paź","lis","gru"],datasets:sets},options:o});
-  }
-}
-
-function drawTrend(R,id){
-  {
-    const pts=R.filter(i=>i.norm!=null).map(i=>({x:i.tmid,y:i.norm}));
-    const ma=movavg(pts.map(p=>p.y),3).map((y,k)=>({x:pts[k].x,y}));
-    const lr=linreg(pts); const sets=[ds("Koszt / 30 dni",css("--c-total"),pts,{fill:true}),ds("Średnia krocząca (3)",css("--c-garden"),ma,{borderDash:[],pointRadius:0,fill:false})];
-    let note="";
-    if(lr&&pts.length>2){const x0=pts[0].x,x1=pts[pts.length-1].x;sets.push(ds("Trend liniowy",css("--c-trend"),[{x:x0,y:lr.a+lr.b*x0},{x:x1,y:lr.a+lr.b*x1}],{borderDash:[6,5],pointRadius:0,tension:0}));
-      const perYear=lr.b*365.25*864e5; note=`Trend: ${perYear>=0?"+":""}${nf(perYear,0)} zł/mies. na rok`;}
-    {const n=$("#"+id+"note");if(n)n.textContent=note;}
-    const o=timeAxis(chartBase(),R); o.scales.y=Y("zł / 30 dni");
-    mk(id,{type:"line",data:{datasets:sets},options:o});
+    const sets=[];
+    if(F.home) sets.push({label:"Dom m³",data:R.map(i=>i.water_home_m3),backgroundColor:css("--c-home"),stack:"u",borderRadius:2});
+    if(F.garden) sets.push({label:"Ogród m³",data:R.map(i=>i.water_garden_m3),backgroundColor:css("--c-garden"),stack:"u",borderRadius:2});
+    const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y("m³ / faktura","m3")};
+    o.plugins.tooltip.callbacks={title:items=>{const i=R[items[0].dataIndex];return fmtD(i.issue_date)+" ("+i.days+" dni)"},
+      footer:items=>{const i=R[items[0].dataIndex];return nf((i.water_home_m3+i.water_garden_m3)/i.days*1000,0)+" l/dobę"}};
+    mk("c4",{type:"bar",data:{labels:R.map(i=>monthShort(i.t)),datasets:sets},options:o});
   }
 }
 function drawPrices(R,id){
-  {
-    const mkp=(k)=>R.map(i=>({x:i.t,y:+i[k].toFixed(3)}));
-    const sets=[ds("Woda (brutto)",css("--c-home"),mkp("wp"),{stepped:"before",tension:0}),
-                ds("Ścieki (brutto)",css("--c-sewage"),mkp("sp"),{stepped:"before",tension:0}),
-                ds("Woda + ścieki",css("--c-total"),R.map(i=>({x:i.t,y:+(i.wp+i.sp).toFixed(3)})),{stepped:"before",tension:0,borderDash:[5,4]}),
-                ds("Abonament zł/mies.",css("--c-abo"),R.filter(i=>i.ap>0).map(i=>({x:i.t,y:+i.ap.toFixed(3)})),{stepped:"before",tension:0,yAxisID:"y2",pointRadius:0})];
-    const o=timeAxis(chartBase(),R); o.scales.y=Y("zł / m³ (brutto)"); o.scales.y2={position:"right",grid:{drawOnChartArea:false},ticks:{color:css("--mute")},title:{display:true,text:"abonament zł",color:css("--mute")}};
-    mk(id,{type:"line",data:{datasets:sets},options:o});
-    const a=R[0],b=R[R.length-1];
-    {const n=$("#"+id+"note");if(n)n.innerHTML=`Woda ${arrow(pct(b.wp,a.wp))} · ścieki ${arrow(pct(b.sp,a.sp))} · razem ${arrow(pct(b.wp+b.sp,a.wp+a.sp))} w wybranym okresie`;}
-  }
+  const mkp=(k)=>R.map(i=>({x:i.t,y:+i[k].toFixed(3)}));
+  const sets=[ds("Woda",css("--c-home"),mkp("wp"),{stepped:"before",pointRadius:2}),
+              ds("Ścieki",css("--c-sewage"),mkp("sp"),{stepped:"before",pointRadius:2}),
+              ds("Razem",css("--c-total"),R.map(i=>({x:i.t,y:+(i.wp+i.sp).toFixed(3)})),{stepped:"before",borderDash:[5,4],pointRadius:0})];
+  const o=timeAxis(chartBase(),R); o.scales.y=Y("zł / m³ (brutto)");
+  mk(id,{type:"line",data:{datasets:sets},options:o});
+  const a=R[0],b=R[R.length-1], n=$("#"+id+"note");
+  if(n) n.innerHTML=`Woda ${arrow(pct(b.wp,a.wp))} · ścieki ${arrow(pct(b.sp,a.sp))} · razem ${arrow(pct(b.wp+b.sp,a.wp+a.sp))} w wybranym okresie`;
 }
 
 // ---------- widoki ----------
 function kpi(lbl,val,unit,sub){return `<div class="card kpi"><div class="lbl">${lbl}</div><div class="val">${val}<small>${unit||""}</small></div><div class="sub">${sub||"&nbsp;"}</div></div>`}
 function renderOverview(){
-  const L=INV[INV.length-1], P=INV[INV.length-2], M=DATA.status.published||{};
-  const first=INV[0];
+  const L=INV[INV.length-1], P=INV[INV.length-2];
   const last12=INV.filter(i=>i.t>=L.t-366*864e5&&i.okDays), prev12=INV.filter(i=>i.t<L.t-366*864e5&&i.t>=L.t-732*864e5&&i.okDays);
   const avg=a=>a.length?a.reduce((s,i)=>s+i.invoice_gross,0)/a.reduce((s,i)=>s+i.days,0)*30.4375:null;
   const a12=avg(last12), ap=avg(prev12);
-  const tot=INV.reduce((s,i)=>s+i.invoice_gross,0), totM3=INV.reduce((s,i)=>s+i.m3,0);
-  const gShare=INV.reduce((s,i)=>s+(i.water_garden_m3||0),0)/Math.max(totM3,1)*100;
   const yr=last12.reduce((s,i)=>s+i.water_home_m3,0)/Math.max(last12.reduce((s,i)=>s+i.days,0),1)*365;
-  const maxI=INV.filter(i=>i.okDays).reduce((a,b)=>b.norm>a.norm?b:a);
+  const years=[...new Set(INV.map(i=>i.year))].sort((a,b)=>b-a);
+  const yrows=years.map(y=>{const r=INV.filter(i=>i.year===y),g=r.reduce((s,i)=>s+i.invoice_gross,0),m=r.reduce((s,i)=>s+i.m3,0);
+    return `<tr><td>${y}</td><td>${r.length}</td><td>${nf(r.reduce((s,i)=>s+i.water_home_m3,0),0)}</td><td>${nf(r.reduce((s,i)=>s+i.water_garden_m3,0),0)}</td><td><b>${nf(g)}</b></td><td>${nf(m?g/m:null)}</td></tr>`}).join("");
   $("#t-over").innerHTML=`
   <div class="grid kpis">
-    ${kpi("Ostatnia faktura",nf(L.invoice_gross),"zł",`${esc(L.number)} · ${fmtD(L.issue_date)}`)}
-    ${kpi("Termin płatności",fmtD(L.due_date),"",L.interest_amount?`nota odsetkowa ${zl(L.interest_amount)}`:"wg ostatniej faktury")}
+    ${kpi("Ostatnia faktura",nf(L.invoice_gross),"zł",`${fmtD(L.issue_date)} · ${nf(L.water_home_m3,0)}+${nf(L.water_garden_m3,0)} m³`)}
     ${kpi("Cena wody",nf(L.wp,2),"zł/m³",arrow(pct(L.wp,P?P.wp:null))+" vs poprzednia")}
     ${kpi("Cena ścieków",nf(L.sp,2),"zł/m³",arrow(pct(L.sp,P?P.sp:null))+" vs poprzednia")}
-    ${kpi("Realny koszt 1 m³ (dom)",nf(L.perM3,2),"zł/m³","woda + ścieki + abonament")}
-    ${kpi("Średnio miesięcznie (12 mies.)",nf(a12,0),"zł",ap?arrow(pct(a12,ap))+" vs rok wcześniej":"")}
+    ${kpi("Realny koszt 1 m³ (dom)",nf(L.perM3,2),"zł/m³","z abonamentem i ściekami")}
+    ${kpi("Średnio miesięcznie",nf(a12,0),"zł",ap?arrow(pct(a12,ap))+" vs rok wcześniej":"ostatnie 12 mies.")}
     ${kpi("Zużycie roczne (dom)",nf(yr,0),"m³","≈ "+nf(yr*1000/365,0)+" l/dobę")}
-    ${kpi("Ostatni okres",nf(L.water_home_m3,0)+"+"+nf(L.water_garden_m3,0),"m³","dom + ogród, "+L.days+" dni")}
   </div>
-  <div class="grid cols2" style="margin-top:14px">
-    <div class="card"><h2>Koszt miesięczny – trend</h2><p class="hint" id="c2onote"></p><div class="chartbox"><canvas id="c2o"></canvas></div></div>
-    <div class="card"><h2>Ceny wody i ścieków</h2><p class="hint" id="c3onote"></p><div class="chartbox"><canvas id="c3o"></canvas></div></div>
-  </div>
-  <div class="card" style="margin-top:14px"><h2>Najważniejsze wnioski</h2>
-    <div class="insight">💧 <div>Od <b>${fmtD(first.issue_date)}</b> woda podrożała o <b>${nf(pct(L.wp,first.wp),0)}%</b> (${nf(first.wp)} → ${nf(L.wp)} zł/m³), ścieki o <b>${nf(pct(L.sp,first.sp),0)}%</b> (${nf(first.sp)} → ${nf(L.sp)} zł/m³).</div></div>
-    <div class="insight">💰 <div>Łącznie ${INV.length} faktur na <b>${zl(tot)}</b> i <b>${nf(totM3,0)} m³</b> wody (średnio ${nf(tot/Math.max(totM3,1))} zł za m³ wszystkiego).</div></div>
-    <div class="insight">🌿 <div>Ogród to <b>${nf(gShare,0)}%</b> zużycia wody. Za wodę z podlicznika nie płacisz ścieków, co oszczędza około ${zl(INV.reduce((s,i)=>s+(i.water_garden_m3||0)*i.sp,0))} łącznie.</div></div>
-    <div class="insight">📈 <div>Najdroższy okres (przeliczony na 30 dni): <b>${zl(maxI.norm)}</b> (faktura ${esc(maxI.number)}, ${fmtD(maxI.issue_date)}).</div></div>
-  </div>`;
-  drawOverCharts();
-}
-function drawOverCharts(){ drawCharts(); }
-
-function renderCharts(){
-  const years=[...new Set(INV.map(i=>i.year))].sort((a,b)=>b-a);
-  $("#t-charts").innerHTML=`
-  <div class="filters">
-    <div class="seg" id="frange"><button data-r="all">Wszystko</button><button data-r="12">12 mies.</button><button data-r="24">24 mies.</button><button data-r="36">3 lata</button><button data-r="year">Rok</button></div>
+  <div class="filters" style="margin-top:14px">
+    <div class="seg" id="frange"><button data-r="all">Wszystko</button><button data-r="12">12 mies.</button><button data-r="24">24 mies.</button><button data-r="year">Rok</button></div>
     <select id="fyear" class="${F.range==="year"?"":"hide"}">${years.map(y=>`<option value="${y}">${y}</option>`).join("")}</select>
     <span class="chip" id="fhome"><i style="background:var(--c-home)"></i>Dom</span>
     <span class="chip" id="fgarden"><i style="background:var(--c-garden)"></i>Ogród</span>
-    <span class="chip" id="fnorm" title="Przelicza koszty na 30 dni, żeby faktury z różnych okresów dało się porównać">Koszt na 30 dni</span>
+    <span class="chip" id="fnorm" title="Przelicza koszty na 30 dni, żeby porównać okresy różnej długości">Na 30 dni</span>
   </div>
   <div class="grid cols2">
-    <div class="card"><h2>Koszt faktur wg składników</h2><p class="hint">Woda dom/ogród, ścieki, abonament. Włącz „Koszt na 30 dni”, żeby porównać okresy różnej długości.</p><div class="chartbox tall"><canvas id="c1"></canvas></div></div>
-    <div class="card"><h2>Trend kosztu miesięcznego</h2><p class="hint" id="c2note"></p><div class="chartbox tall"><canvas id="c2"></canvas></div></div>
-    <div class="card"><h2>Ceny za m³ i abonament</h2><p class="hint" id="c3note"></p><div class="chartbox tall"><canvas id="c3"></canvas></div></div>
-    <div class="card"><h2>Zużycie wody na dobę</h2><p class="hint">Dom i ogród, w m³ na dobę (najechanie pokazuje litry).</p><div class="chartbox tall"><canvas id="c4"></canvas></div></div>
-    <div class="card"><h2>Realny koszt 1 m³ wody domowej</h2><p class="hint">Woda + ścieki + abonament podzielone przez zużycie domowe. Abonament podnosi cenę przy małym zużyciu.</p><div class="chartbox tall"><canvas id="c5"></canvas></div></div>
-    <div class="card"><h2>Podsumowanie roczne</h2><p class="hint">Suma faktur wg roku wystawienia (pierwszy i ostatni rok mogą być niepełne).</p><div class="chartbox tall"><canvas id="c6"></canvas></div></div>
-    <div class="card" style="grid-column:1/-1"><h2>Sezonowość zużycia</h2><p class="hint">Średnie m³/dobę wg miesiąca, osobna linia na każdy rok. Widać, kiedy zaczyna się podlewanie.</p><div class="chartbox tall"><canvas id="c7"></canvas></div></div>
+    <div class="card"><h2>Koszt faktur</h2><div class="chartbox"><canvas id="c1"></canvas></div></div>
+    <div class="card"><h2>Zużycie wody</h2><div class="chartbox"><canvas id="c4"></canvas></div></div>
+    <div class="card"><h2>Ceny za m³ (brutto)</h2><p class="hint" id="c3note"></p><div class="chartbox"><canvas id="c3"></canvas></div></div>
+    <div class="card"><h2>Rok po roku</h2><div class="tscroll"><table><thead><tr><th>Rok</th><th>Faktur</th><th>m³ dom</th><th>m³ ogród</th><th>Koszt zł</th><th>zł/m³</th></tr></thead><tbody>${yrows}</tbody></table></div></div>
   </div>`;
-  document.querySelectorAll("#t-charts .card").forEach(c=>{const b=document.createElement("div");b.className="tools";b.innerHTML="<button>PNG</button>";
-    b.firstChild.onclick=()=>{const cv=c.querySelector("canvas"),a=document.createElement("a");a.href=cv.toDataURL("image/png");a.download=(c.querySelector("h2").textContent+".png").replace(/\s+/g,"_");a.click()};c.appendChild(b)});
   const sync=()=>{
     document.querySelectorAll("#frange button").forEach(b=>b.classList.toggle("on",b.dataset.r===F.range));
     [["#fhome","home"],["#fgarden","garden"],["#fnorm","norm"]].forEach(([id,k])=>{$(id).classList.toggle("off",!F[k]);$(id).classList.toggle("on",!!F[k])});
@@ -331,7 +256,7 @@ function renderCharts(){
   $("#fhome").onclick=()=>{F.home=!F.home;sync();drawCharts()};
   $("#fgarden").onclick=()=>{F.garden=!F.garden;sync();drawCharts()};
   $("#fnorm").onclick=()=>{F.norm=!F.norm;sync();drawCharts()};
-  sync();
+  sync(); drawCharts();
 }
 
 let SORT={k:"t",asc:false}, Q="", YF="all";
@@ -432,14 +357,14 @@ function renderAll(){
   INV=DATA.invoices.map(enrich);
   if(!INV.length){$("#t-over").innerHTML=`<div class="card empty">Brak faktur w bazie. Poczekaj na pierwszy przebieg synchronizacji (Status).</div>`;return}
   $("#sub").textContent=`${INV.length} faktur · ${fmtD(INV[0].issue_date)} – ${fmtD(INV[INV.length-1].issue_date)} · v${DATA.version}`;
-  renderOverview(); renderCharts(); renderInv(); renderStatus();
+  renderOverview(); renderInv(); renderStatus();
   show(cur,true);
 }
 let cur="over";
 function show(t,keep){
   cur=t; document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["over","charts","inv","ent","stat"].forEach(x=>$("#t-"+x).classList.toggle("hide",x!==t));
-  if(t==="charts"||t==="over") requestAnimationFrame(drawCharts);
+  ["over","inv","ent","stat"].forEach(x=>$("#t-"+x).classList.toggle("hide",x!==t));
+  if(t==="over") requestAnimationFrame(drawCharts);
   if(t==="ent"&&!keep) renderEnt();
 }
 $("#nav").onclick=e=>{const t=e.target.dataset.t;if(t)show(t)};
