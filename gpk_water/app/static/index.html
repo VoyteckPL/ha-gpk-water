@@ -99,13 +99,14 @@ input{box-sizing:border-box;max-width:100%}.form input[type=time]{width:132px}
 .chk{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink)}.ev{padding:6px 0;border-top:1px solid var(--line)}
 @media(max-width:560px){.form{grid-template-columns:1fr}.form>label{padding-top:0}}
 @media(max-width:560px){.seg button{padding:5px 8px;font-size:12px}#fyears button{padding:5px 5px;font-size:12px}.filters{gap:6px;position:static}.kpi .val{font-size:22px}main{padding:12px}.chartbox{height:260px}}
+@media(max-width:560px){header{padding-top:6px}.top{flex-wrap:nowrap;gap:7px}.logo{padding:3px 6px}.logo img{height:20px}.ttl{min-width:0}.ttl h1{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ttl small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px}.pill{padding:3px 7px;font-size:10.5px;gap:4px}.dot{width:7px;height:7px}.iconbtn{padding:3px 8px;font-size:13px}}
 </style>
 </head>
 <body>
 <header><div class="hwrap">
   <div class="top">
     <div class="logo"><img src="static/logo.png" alt="GPK Szemud"></div>
-    <div class="ttl"><h1>Woda – faktury i koszty</h1><small id="sub">ładowanie…</small></div>
+    <div class="ttl"><h1>Faktury za wodę</h1><small id="sub">ładowanie…</small></div>
     <span class="pill" id="syncpill"><span class="dot wait"></span><span>…</span></span>
     <button class="iconbtn" id="refresh" title="Odśwież">⟳</button>
   </div>
@@ -510,7 +511,7 @@ function renderStatus(){
     <ul>${DATA.failed_files.map(n=>`<li><a href="failed/${encodeURIComponent(n)}">${esc(n)}</a></li>`).join("")}</ul>
     ${fails.map(f=>`<div class="mono hint">${esc(f.note)}</div>`).join("")}`:'<p class="hint">Brak. Wszystkie faktury zostały odczytane. ✓</p>'}</div>`;
   const dot=$("#syncpill");
-  dot.innerHTML=S.last_error?`<span class="dot err"></span><span>błąd synchronizacji</span>`:S.last_ok?`<span class="dot ok"></span><span>sync ${ago(S.last_ok)}</span>`:`<span class="dot wait"></span><span>oczekiwanie</span>`;
+  dot.innerHTML=S.last_error?`<span class="dot err"></span><span>błąd sync</span>`:S.last_ok?`<span class="dot ok"></span><span>${ago(S.last_ok)}</span>`:`<span class="dot wait"></span><span>oczekiwanie</span>`;
 }
 
 function renderAll(){

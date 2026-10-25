@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.5
+- Nagłówek na telefonie w jednym rzędzie: mniejsze logo, krótszy tytuł, mniejszy znacznik synchronizacji i przycisk odświeżania.
+
 ## 0.5.4
 - Statystyki z liczników (kafelki, szacunek, wykres zużycia z zakresami) przeniesione na stronę Przegląd; zakładka Liczniki zostaje na ustawienia i kontrolę z fakturami.
 - Mniejsze przyciski, lata mieszczą się w jednym rzędzie na telefonie.
