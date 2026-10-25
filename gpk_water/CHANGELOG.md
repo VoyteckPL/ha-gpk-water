@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.8
+- Wycofane otwieranie panelu po tapnięciu powiadomienia (dawało 404). Tapnięcie nic nie otwiera.
+
 ## 0.6.7
 - Tapnięcie powiadomienia na telefonie otwiera panel dodatku od razu na zakładce Powiadomienia (pełna treść, ostatnio wysłane).
 

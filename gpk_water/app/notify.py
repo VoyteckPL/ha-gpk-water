@@ -31,9 +31,7 @@ def _data(svc: str, title: str, message: str) -> dict:
     d = {"title": title, "message": message}
     if svc.startswith("notify.mobile_app_"):
         # tapnięcie nie otwiera aplikacji, tylko rozwija pełną treść (Android); długi tekst w stylu "bigtext"
-        u = _panel_url()
-        # tapnięcie otwiera panel dodatku na zakładce Powiadomienia (pełna treść); bez adresu - nic nie robi
-        d["data"] = {"clickAction": u or "noAction", "url": u} if u else {"clickAction": "noAction"}
+        d["data"] = {"clickAction": "noAction"}  # adres panelu przez ingress dawał 404, więc tapnięcie nic nie otwiera
     return d
 
 
@@ -52,8 +50,6 @@ def send(title: str, message: str, kind: str = "info", notify_service: str = "",
         if svc.startswith("notify."):
             msgs.append({"type": "call_service", "domain": "notify", "service": svc.split(".", 1)[1],
                          "service_data": _data(svc, title, message)})
-    if any((x or "").startswith("notify.mobile_app_") for x in svcs):
-        OPEN_TAB["pending"] = True
     errors: list = []
     LAST["errors"] = errors
     try:
