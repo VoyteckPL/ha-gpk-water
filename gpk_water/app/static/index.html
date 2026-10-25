@@ -65,7 +65,7 @@ h2{font-size:15.5px;margin:0 0 2px}
 .card .tools{position:absolute;right:12px;top:10px}
 .card .tools button{background:var(--chip);color:var(--mute);border:0;border-radius:8px;padding:4px 8px;font-size:12px}
 .filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px;position:sticky;top:0;z-index:5;background:var(--bg);padding:8px 0}
-.seg{display:inline-flex;background:var(--chip);border-radius:11px;padding:3px}
+.seg{display:inline-flex;flex-wrap:wrap;max-width:100%;background:var(--chip);border-radius:11px;padding:3px}
 .seg button{background:none;border:0;color:var(--mute);padding:6px 12px;border-radius:9px;font-weight:550;font-size:13.5px}
 .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
 select,input[type=search],input[list],input[type=text],input:not([type]),input[type=number],input[type=time]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;min-width:0}
@@ -98,7 +98,7 @@ input{box-sizing:border-box;max-width:100%}.form input[type=time]{width:132px}
 .form{display:grid;grid-template-columns:minmax(120px,170px) 1fr;gap:10px 12px;align-items:start}.form>label{padding-top:7px;color:var(--mute);font-size:14px}
 .chk{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink)}.ev{padding:6px 0;border-top:1px solid var(--line)}
 @media(max-width:560px){.form{grid-template-columns:1fr}.form>label{padding-top:0}}
-@media(max-width:560px){.kpi .val{font-size:22px}main{padding:12px}.chartbox{height:260px}}
+@media(max-width:560px){.seg button{padding:5px 8px;font-size:12px}#fyears button{padding:5px 5px;font-size:12px}.filters{gap:6px;position:static}.kpi .val{font-size:22px}main{padding:12px}.chartbox{height:260px}}
 </style>
 </head>
 <body>
@@ -279,7 +279,6 @@ function renderOverview(){
     return `<tr class="yr" data-y="${y}" style="cursor:pointer"><td>${y}</td><td>${r.length}</td><td>${nf(r.reduce((s,i)=>s+i.water_home_m3,0),0)}</td><td>${nf(r.reduce((s,i)=>s+i.water_garden_m3,0),0)}</td><td><b>${nf(g)}</b></td><td>${nf(m?g/m:null)}</td></tr>`}).join("");
   $("#t-over").innerHTML=`
   <div class="grid kpis">
-    <div id="met-slot" style="display:contents"></div>
     ${kpi("Ostatnia faktura",nf(L.invoice_gross),"zł",`${fmtD(L.issue_date)} · ${nf(L.water_home_m3,0)}+${nf(L.water_garden_m3,0)} m³`,"--c-total","🧾","last")}
     <div class="card kpi multi" style="--kc:var(--c-home)" data-act="prices" role="button" tabindex="0" title="Kliknij, aby zobaczyć wykres cen">
       <div class="lbl"><span>Ceny wody (brutto)</span><span class="ic">💧</span></div>
@@ -291,6 +290,7 @@ function renderOverview(){
     ${kpi("Średnio miesięcznie",nf(a12,0),"zł",ap?arrow(pct(a12,ap))+" vs rok wcześniej":"ostatnie 12 mies.","--c-avg","📅","cost")}
     ${kpi("Zużycie roczne (dom)",nf(yr,0),"m³","≈ "+nf(yr*1000/365,0)+" l/dobę","--c-garden","🌿","usage")}
   </div>
+  <div id="met-over"></div>
   <div class="filters" style="margin-top:14px">
     <div class="seg" id="fyears">${years.slice().reverse().map(y=>`<button data-y="${y}">${y}</button>`).join("")}<button data-y="all">Wszystkie</button></div>
     <span class="chip" id="fhome"><i style="background:var(--c-home)"></i>Dom</span>
@@ -335,13 +335,25 @@ function openInvoice(num){
 
 let MET=null;
 function fillMetTile(){
-  const slot=$("#met-slot"); if(!slot||!MET) return;
-  let html="";
-  if(!MET.configured) html=kpi("Wodomierze z HA","Podłącz","","szacunek kosztu na bieżąco","--c-est","🔌","met");
-  else if(MET.error||!MET.estimate) html=kpi("Wodomierze z HA","Błąd","",esc((MET.error||"brak danych").slice(0,60)),"--c-other","⚠️","met");
-  else{const e=MET.estimate;html=kpi("Od ostatniej faktury",nf(e.total,0),"zł",`${e.days} dni · ok. ${nf(e.next_invoice,0)} zł na fakturze`,"--c-est","⏱️","met")}
-  slot.innerHTML=html;
-  const k=slot.querySelector(".kpi"); if(k){k.onclick=()=>show("met");k.onkeydown=e=>{if(e.key==="Enter"){show("met")}}}
+  const box=$("#met-over"); if(!box||!MET) return;
+  const e=MET.estimate;
+  if(!MET.configured){box.innerHTML=`<div class="card" style="margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span style="font-size:22px">🔌</span><div style="flex:1;min-width:200px"><b>Wodomierze z Home Assistant</b><div class="hint" style="margin:2px 0 0">Podłącz je, aby widzieć bieżące zużycie i szacunek kosztu przed fakturą.</div></div><button class="chip on" id="metgo">Podłącz</button></div>`;$("#metgo").onclick=()=>show("met");return}
+  if(MET.error||!e){box.innerHTML=`<div class="card" style="margin-top:14px;border-left:4px solid var(--bad)"><b>Wodomierze: nie można policzyć szacunku</b><p class="hint">${esc((MET.error||"brak danych").slice(0,200))} <a href="#" id="metgo">Ustawienia</a></p></div>`;$("#metgo").onclick=ev=>{ev.preventDefault();show("met")};return}
+  const t=(l,v,u,sub,c,ic)=>`<div class="card kpi" style="--kc:var(${c});cursor:default"><div class="lbl"><span>${l}</span><span class="ic">${ic}</span></div><div class="val">${v}<small>${u}</small></div><div class="sub">${sub||"&nbsp;"}</div></div>`;
+  box.innerHTML=`<div class="grid kpis" style="margin-top:14px">
+      ${t("Razem od faktury",nf(e.total),"zł",`${e.days} dni od ${fmtD(e.since)}`,"--c-est","⏱️")}
+      ${t("Dom",nf(e.cost_home+e.cost_abo),"zł",`${nf(e.m3_home,2)} m³ + abonament`,"--c-home","🏠")}
+      ${t("Ogród",nf(e.cost_garden),"zł",`${nf(e.m3_garden,2)} m³`,"--c-garden","🌿")}
+      ${t("Następna faktura",nf(e.next_invoice,0),"zł",`szacunek na ${e.typical_days} dni`,"--c-cost","🧾")}
+      ${t("Tempo (14 dni)",e.l_per_day!=null?nf(e.l_per_day,0):"–","l/dobę","dom + ogród","--c-avg","💧")}</div>
+    <div class="card cc" style="margin-top:14px;--kc:var(--c-home)"><h2>Zużycie z liczników</h2><p class="hint">Dane z HA od ${fmtD(MET.history_from)}.</p>
+      <div class="filters" style="position:static;padding:0;margin-bottom:10px"><div class="seg" id="mrange">${[["7","7 dni"],["30","30 dni"],["month","Ten miesiąc"],["prev","Poprzedni"],["90","90 dni"],["365","Rok"],["all","Wszystko"]].map(([k,l])=>`<button data-r="${k}">${l}</button>`).join("")}</div>
+      <div class="seg" id="mgroup"><button data-g="day">Dni</button><button data-g="week">Tygodnie</button><button data-g="month">Miesiące</button></div></div>
+      <div class="hint" id="msum"></div><div class="chartbox"><canvas id="cm"></canvas></div></div>`;
+  if(MET.daily){METD=MET;
+    $("#mrange").onclick=x=>{const r=x.target.dataset.r;if(!r)return;MR.range=r;MR.group=r==="all"||r==="365"?"month":r==="90"?"week":"day";drawMet()};
+    $("#mgroup").onclick=x=>{const g=x.target.dataset.g;if(!g)return;MR.group=g;drawMet()};
+    drawMet()}
 }
 async function loadMeters(){try{MET=await (await fetch("api/meters")).json();fillMetTile()}catch(e){}}
 async function renderMeters(){
@@ -364,20 +376,9 @@ async function renderMeters(){
   let body="";
   if(M.configured&&M.error) body=`<div class="card" style="margin-top:14px;border-left:4px solid var(--bad)"><b>Nie można policzyć szacunku</b><p class="hint">${esc(M.error)}</p></div>`;
   else if(M.configured&&e){
-    const t=(l,v,u,sub,c,ic)=>`<div class="card kpi" style="--kc:var(${c});cursor:default"><div class="lbl"><span>${l}</span><span class="ic">${ic}</span></div><div class="val">${v}<small>${u}</small></div><div class="sub">${sub||"&nbsp;"}</div></div>`;
     const acc=(M.accuracy||[]).slice().reverse();
     const cell=(inv,ha,p)=>p==null?"–":`${nf(inv,0)} / ${nf(ha,1)} <span class="${Math.abs(p)>10?"up":"down"}">(${p>0?"+":""}${nf(p,1)}%)</span>`;
-    body=`<div class="grid kpis" style="margin-top:14px">
-      ${t("Razem od faktury",nf(e.total),"zł",`${e.days} dni od ${fmtD(e.since)}`,"--c-est","⏱️")}
-      ${t("Dom",nf(e.cost_home+e.cost_abo),"zł",`${nf(e.m3_home,2)} m³ + abonament`,"--c-home","🏠")}
-      ${t("Ogród",nf(e.cost_garden),"zł",`${nf(e.m3_garden,2)} m³`,"--c-garden","🌿")}
-      ${t("Następna faktura",nf(e.next_invoice,0),"zł",`szacunek na ${e.typical_days} dni`,"--c-cost","🧾")}
-      ${t("Tempo (14 dni)",e.l_per_day!=null?nf(e.l_per_day,0):"–","l/dobę","dom + ogród","--c-avg","💧")}</div>
-      <div class="card cc" style="margin-top:14px;--kc:var(--c-home)"><h2>Zużycie z liczników</h2><p class="hint">Dane z HA od ${fmtD(M.history_from)}.</p>
-        <div class="filters" style="position:static;padding:0;margin-bottom:10px"><div class="seg" id="mrange">${[["7","7 dni"],["30","30 dni"],["month","Ten miesiąc"],["prev","Poprzedni"],["90","90 dni"],["365","Rok"],["all","Wszystko"]].map(([k,l])=>`<button data-r="${k}">${l}</button>`).join("")}</div>
-        <div class="seg" id="mgroup"><button data-g="day">Dni</button><button data-g="week">Tygodnie</button><button data-g="month">Miesiące</button></div></div>
-        <div class="hint" id="msum"></div><div class="chartbox"><canvas id="cm"></canvas></div></div>
-      <div class="card cc" style="margin-top:14px;--kc:var(--c-sewage)"><h2>Kontrola: licznik vs faktura</h2>
+    body=`<div class="card cc" style="margin-top:14px;--kc:var(--c-sewage)"><h2>Kontrola: licznik vs faktura</h2>
         <p class="hint">Porównanie zużycia z Twoich liczników z odczytem gminy za ten sam okres. Różnice kilku procent są normalne (godzina odczytu, szacunki gminy).</p>
         ${acc.length?`<div class="tscroll"><table><thead><tr><th class="l">Faktura</th><th>Okres</th><th>Główny: faktura / HA (m³)</th>${acc[0].inv_sub!=null?"<th>Ogród: faktura / HA (m³)</th>":""}</tr></thead><tbody>
         ${acc.map(r=>`<tr><td class="l">${fmtD(r.issue_date)}</td><td>${fmtD(r.period_start)} – ${fmtD(r.period_end)}</td><td>${cell(r.inv_main,r.ha_main,r.diff_main_pct)}</td>${r.inv_sub!=null?`<td>${cell(r.inv_sub,r.ha_sub,r.diff_sub_pct)}</td>`:""}</tr>`).join("")}</tbody></table></div>`:`<p class="hint">Historia liczników w HA nie obejmuje jeszcze żadnego pełnego okresu faktury.</p>`}</div>`;
@@ -387,12 +388,7 @@ async function renderMeters(){
     const r=await fetch("api/meters/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({main:$("#mmain").value,sub:$("#msub").value})});
     if(!r.ok){$("#mmsg").textContent=await r.text();b.textContent="Zapisz i przelicz";return}
     renderMeters()};
-  if(M.configured&&e&&M.daily){
-    METD=M;
-    $("#mrange").onclick=x=>{const r=x.target.dataset.r;if(!r)return;MR.range=r;MR.group=r==="all"||r==="365"?"month":r==="90"?"week":"day";drawMet()};
-    $("#mgroup").onclick=x=>{const g=x.target.dataset.g;if(!g)return;MR.group=g;drawMet()};
-    drawMet();
-  }
+  if(M.configured&&e) el.insertAdjacentHTML("afterbegin",`<p class="hint" style="margin:0 0 10px">Statystyki i wykres zużycia z liczników są teraz na stronie Przegląd. Tu są ustawienia i kontrola z fakturami.</p>`);
 }
 let METD=null, MR={range:"30",group:"day"};
 function drawMet(){

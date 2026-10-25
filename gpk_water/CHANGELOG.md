@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.4
+- Statystyki z liczników (kafelki, szacunek, wykres zużycia z zakresami) przeniesione na stronę Przegląd; zakładka Liczniki zostaje na ustawienia i kontrolę z fakturami.
+- Mniejsze przyciski, lata mieszczą się w jednym rzędzie na telefonie.
+
 ## 0.5.3
 - Powiadomienia: „Wyślij próbne” używa aktualnie zaznaczonych urządzeń (nie trzeba najpierw zapisywać) i pokazuje błędy zwrócone przez HA (np. nieistniejąca usługa).
 
