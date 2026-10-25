@@ -7,6 +7,14 @@ log = logging.getLogger("gpk.notify")
 LAST: dict = {"errors": []}
 
 
+def _data(svc: str, title: str, message: str) -> dict:
+    d = {"title": title, "message": message}
+    if svc.startswith("notify.mobile_app_"):
+        # tapnięcie nie otwiera aplikacji, tylko rozwija pełną treść (Android); długi tekst w stylu "bigtext"
+        d["data"] = {"clickAction": "noAction", "tag": "gpk_water", "group": "gpk_water"}
+    return d
+
+
 def send(title: str, message: str, kind: str = "info", notify_service: str = "", nid: str | None = None,
          persistent: bool = True) -> bool:
     msgs = [
@@ -21,7 +29,7 @@ def send(title: str, message: str, kind: str = "info", notify_service: str = "",
         svc = (svc or "").strip()
         if svc.startswith("notify."):
             msgs.append({"type": "call_service", "domain": "notify", "service": svc.split(".", 1)[1],
-                         "service_data": {"title": title, "message": message}})
+                         "service_data": _data(svc, title, message)})
     errors: list = []
     LAST["errors"] = errors
     try:

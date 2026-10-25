@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.4
+- Powiadomienie na telefonie: tapnięcie nie otwiera już HA, tylko rozwija pełną treść (Android; na iOS rozwija się przytrzymaniem lub pociągnięciem w dół).
+
 ## 0.6.3
 - Powiadomienia: ustawienia zapisują się od razu po zmianie (wcześniej trzeba było kliknąć Zapisz, inaczej po wyjściu z zakładki zaznaczenia znikały).
 
