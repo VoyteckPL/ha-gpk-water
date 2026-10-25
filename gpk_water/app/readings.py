@@ -179,8 +179,9 @@ def _deliver(store, o: dict, sid: int, kind: str, now: datetime, force: bool) ->
     mailer.send_mail(user, pw, to, cc, subj, body, month)
     store.update_submission(sid, status="sent", sent_at=now.isoformat(timespec="seconds"), main=fmt(vals["main"]),
                             sub=fmt(vals["sub"]) if vals.get("sub") is not None else None, to_addr=", ".join(to), error=None)
-    notifications.emit(store, "readings_sent", "Wysłano stany liczników", f"{body}Do: {', '.join(to + cc)}",
-                       f"rd:sent:{sid}", now)
+    notifications.emit(store, "readings_sent", f"✅ Odczyty wysłane: {fmt(vals['main'])} m³", f"{body}Do: {', '.join(to + cc)}",
+                       f"rd:sent:{sid}", now,
+                       short=(f"Ogród {fmt(vals['sub'])} m³ · " if vals.get("sub") is not None else "") + "do " + ", ".join(to or cc))
 
 
 def _attempt(store, o, sid, kind, now, force=False) -> str:
@@ -198,8 +199,8 @@ def _attempt(store, o, sid, kind, now, force=False) -> str:
     store.update_submission(sid, status="failed", error=err)
     log.warning("wysyłka odczytów nieudana (%s, próba %s): %s", level, rec["attempts"], err)
     if not rec["notified"] and (level == "SanityError" or rec["attempts"] >= 3):
-        notifications.emit(store, "readings_failed", "Stany liczników nie zostały wysłane",
-                           f"Dodatek próbuje ponownie co 10 minut. Powód: {err}", f"rd:fail:{sid}", now)
+        notifications.emit(store, "readings_failed", "❌ Odczyty nie wysłane",
+                           f"Dodatek próbuje ponownie co 10 minut. Powód: {err}", f"rd:fail:{sid}", now, short=str(err)[:80])
         store.update_submission(sid, notified=1)
     return "failed"
 
@@ -224,9 +225,9 @@ def tick(store, o: dict, now: datetime | None = None) -> str:
                              error=f"nie udało się wysłać w ciągu {s['window_days']} dni")
         if len(store.submissions()) <= 1:  # pierwsze włączenie w środku miesiąca - bez alarmu
             return "missed"
-        notifications.emit(store, "readings_failed", "Stany liczników nie zostały wysłane",
+        notifications.emit(store, "readings_failed", "❌ Odczyty nie wysłane",
                            f"Minęło {s['window_days']} dni od terminu ({t.strftime('%d.%m')}) i odczyty za {month} nie wyszły. "
-                           "Wyślij je ręcznie w panelu (zakładka Odczyty).", f"rd:missed:{month}", now)
+                           "Wyślij je ręcznie w panelu (zakładka Odczyty).", f"rd:missed:{month}", now, short=f"Okno wysyłki za {month} minęło, wyślij ręcznie")
         return "missed"
     pend = next((r for r in recs if r["status"] in ("pending", "failed")), None)
     if pend and pend["last_try"] and time.time() - pend["last_try"] < RETRY_S:

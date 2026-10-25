@@ -36,7 +36,7 @@ def _data(svc: str, title: str, message: str) -> dict:
 
 
 def send(title: str, message: str, kind: str = "info", notify_service: str = "", nid: str | None = None,
-         persistent: bool = True) -> bool:
+         persistent: bool = True, phone_message: str | None = None) -> bool:
     msgs = [
         {"type": "call_service", "domain": "persistent_notification", "service": "create",
          "service_data": {"title": title, "message": message, "notification_id": (nid or f"gpk_water_{kind}").replace(":", "_")}},
@@ -49,7 +49,7 @@ def send(title: str, message: str, kind: str = "info", notify_service: str = "",
         svc = (svc or "").strip()
         if svc.startswith("notify."):
             msgs.append({"type": "call_service", "domain": "notify", "service": svc.split(".", 1)[1],
-                         "service_data": _data(svc, title, message)})
+                         "service_data": _data(svc, title, phone_message if phone_message is not None else message)})
     errors: list = []
     LAST["errors"] = errors
     try:

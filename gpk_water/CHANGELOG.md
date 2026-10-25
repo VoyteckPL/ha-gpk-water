@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+- Powiadomienia mają krótkie tytuły z kluczową informacją (np. „🧾 Faktura GPK 194,00 zł") i jednolinijkową treść na telefonie; pełne szczegóły zostają w powiadomieniu w HA.
+- Przy każdym zdarzeniu w zakładce Powiadomienia jest przycisk „Wyślij próbne" z przykładem tego powiadomienia.
+
 ## 0.6.9
 - Powiadomienia na Androidzie mają własną kategorię „Woda GPK" (osobne ustawienia dźwięku, wibracji i wyglądu w ustawieniach telefonu).
 

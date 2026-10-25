@@ -88,7 +88,7 @@ def in_quiet(s: dict, now: datetime | None = None) -> bool:
     return (a <= cur or cur < b) if a > b else (a <= cur < b)
 
 
-def emit(store, kind: str, title: str, message: str, key: str, now: datetime | None = None) -> bool:
+def emit(store, kind: str, title: str, message: str, key: str, now: datetime | None = None, short: str | None = None) -> bool:
     """Wysyła powiadomienie, jeśli to zdarzenie jest włączone i jeszcze go nie wysłano (klucz)."""
     s = get_settings()
     if not s["events"].get(kind, {}).get("enabled", False):
@@ -96,19 +96,36 @@ def emit(store, kind: str, title: str, message: str, key: str, now: datetime | N
     if store.was_notified(key):
         return False
     phone = [] if in_quiet(s, now) else s["notify_services"]
-    ok = notify.send(title, message, kind, phone, key, persistent=s["persistent"])
+    ok = notify.send(title, message, kind, phone, key, persistent=s["persistent"], phone_message=short)
     store.log_notification(key, kind, title, message, ok)
     return ok
 
 
-def test(store, services: list | None = None) -> dict:
-    """Próbne powiadomienie na wskazane (lub zapisane) urządzenia; zwraca szczegóły z błędami z HA."""
+SAMPLES = {  # rodzaj: (tytuł, krótka treść na telefon, pełna treść w HA)
+    "new_invoice": ("🧾 Faktura GPK 194,00 zł", "Do 15.10 · 14 m³ · +6% na dobę",
+                    "Okres 01.08–30.09 (61 dni) · 14 m³ (dom 10, ogród 4)\nTermin płatności: 15.10.2026\nRealny koszt 1 m³ (dom): 17,00 zł\nNa dobę drożej o 6% niż poprzednio (183,00 zł)"),
+    "price_change": ("💧 Zmiana cen wody i ścieków", "woda 7,70 → 7,95; ścieki 9,10 → 9,50",
+                     "woda 7,70 → 7,95 zł netto/m³ (+3,2%)\nścieki 9,10 → 9,50 zł netto/m³ (+4,4%)"),
+    "high_invoice": ("⚠️ Faktura +42% ponad średnią", "312,00 zł, średnio 220,00 zł", "Na dobę 5,11 zł wobec średniej 3,60 zł z 12 miesięcy (+42%)."),
+    "interest": ("⚠️ Nota odsetkowa 4,20 zł", "Sprawdź, czy poprzednia faktura jest opłacona", "Do faktury 123/2026 dołączono notę odsetkową. Sprawdź, czy poprzednia faktura jest opłacona."),
+    "usage_spike": ("🚰 Wczoraj 3,2 m³ w domu", "Zwykle 0,4 m³, sprawdź wyciek", "24.10.2026: dom zużył 3,2 m³ (zwykle ok. 0,4 m³ na dobę), ogród 0,0 m³. Sprawdź, czy nie ma wycieku."),
+    "no_invoice": ("📭 Brak faktury 10 dni po odczytach", "Odczyty wysłane 02.10", "Odczyty wysłano 02.10, a faktury nadal nie ma (10 dni). Sprawdź pocztę lub portal eBOK."),
+    "readings_sent": ("✅ Odczyty wysłane: 1647,8 m³", "Ogród 214,3 m³ · do GPK", "Stan licznika głównego: 1647,8 m³\nPodlicznik (ogród): 214,3 m³\nDo: faktury@gpkszemud.pl"),
+    "readings_failed": ("❌ Odczyty nie wysłane", "Błąd poczty, ponawiam", "Dodatek próbuje ponownie co 10 minut. Powód: błąd poczty (przykład)."),
+    "sync_problem": ("❌ Nie odczytano faktury z maila", "1 PDF do sprawdzenia w Statusie", "1 mail(i) z PDF nie zostały sparsowane. Możliwy nowy format faktury. Pobierz je w zakładce Status."),
+}
+
+
+def test(store, services: list | None = None, kind: str | None = None) -> dict:
+    """Próbne powiadomienie (ogólne albo przykład wskazanego zdarzenia) na wskazane lub zapisane urządzenia."""
     s = get_settings()
     svcs = s["notify_services"] if services is None else [("notify." + x if not x.startswith("notify.") else x) for x in services if x]
-    ok = notify.send("GPK Szemud: test powiadomień", "Jeśli to widzisz, powiadomienia działają.\n\nTo długie powiadomienie testowe - sprawdź, czy da się je rozwinąć bez otwierania HA.\n"
-                     + "\n".join(f"Linia {n}: przykładowy wiersz podsumowania faktury, zużycie i koszt za okres." for n in range(1, 13))
-                     + "\n\nKoniec wiadomości - jeśli widzisz ten wiersz, całość się rozwinęła.", "test", svcs,
-                     "gpk_water_test", persistent=True)
+    if kind in SAMPLES:
+        t, sh, full = SAMPLES[kind]
+        ok = notify.send("[próba] " + t, full, "test", svcs, "gpk_water_test_" + kind, persistent=True, phone_message=sh)
+    else:
+        ok = notify.send("GPK Szemud: test powiadomień", "Jeśli to widzisz, powiadomienia działają.", "test", svcs,
+                         "gpk_water_test", persistent=True)
     errs = list(notify.LAST.get("errors") or [])
     if not ok and not errs:
         errs = [ha_out.LAST_WS_ERROR or "brak połączenia z HA"]
@@ -157,7 +174,10 @@ def on_new_invoices(store, now: datetime | None = None):
             lines.append(f"Na dobę {'drożej' if ch > 0 else 'taniej'} o {_f(abs(ch), 0)}% niż poprzednio ({_f(prev['invoice_gross'])} zł)")
         if i.get("interest_amount"):
             lines.append(f"Uwaga: nota odsetkowa {_f(i['interest_amount'])} zł")
-        emit(store, "new_invoice", f"Nowa faktura GPK: {_f(i['invoice_gross'])} zł", "\n".join(lines), key, now)
+        sh = f"Do {_d(i['due_date'])[:5]} · {_f(i['water_home_m3'] + i['water_garden_m3'], 0)} m³"
+        if prev and _perday(i) and _perday(prev):
+            sh += f" · {'+' if _perday(i) >= _perday(prev) else '-'}{_f(abs(_perday(i) / _perday(prev) - 1) * 100, 0)}% na dobę"
+        emit(store, "new_invoice", f"🧾 Faktura GPK {_f(i['invoice_gross'])} zł", "\n".join(lines), key, now, short=sh)
         # powiązane zdarzenia
         if prev:
             parts = []
@@ -165,16 +185,16 @@ def on_new_invoices(store, now: datetime | None = None):
                 if i[k] and prev[k] and abs(i[k] - prev[k]) > 0.004:
                     parts.append(f"{lbl} {_f(prev[k])} → {_f(i[k])} zł netto/m³ ({'+' if i[k] > prev[k] else ''}{_f((i[k] / prev[k] - 1) * 100, 1)}%)")
             if parts:
-                emit(store, "price_change", "Zmiana cen wody i ścieków", "\n".join(parts), "price:" + i["number"], now)
+                emit(store, "price_change", "💧 Zmiana cen wody i ścieków", "\n".join(parts), "price:" + i["number"], now, short="; ".join(parts))
         if older and _perday(i):
             avg = sum(x["invoice_gross"] for x in older) / sum(x["period_days"] for x in older if _perday(x))
             lim = s["high_invoice"]["percent"]
             if _perday(i) > avg * (1 + lim / 100):
-                emit(store, "high_invoice", f"Wysoka faktura: {_f(i['invoice_gross'])} zł",
-                     f"Na dobę {_f(_perday(i))} zł wobec średniej {_f(avg)} zł z 12 miesięcy (+{_f((_perday(i) / avg - 1) * 100, 0)}%).", "high:" + i["number"], now)
+                emit(store, "high_invoice", f"⚠️ Faktura +{_f((_perday(i) / avg - 1) * 100, 0)}% ponad średnią",
+                     f"Na dobę {_f(_perday(i))} zł wobec średniej {_f(avg)} zł z 12 miesięcy (+{_f((_perday(i) / avg - 1) * 100, 0)}%).", "high:" + i["number"], now, short=f"{_f(i['invoice_gross'])} zł, średnio {_f(avg * i['period_days'])} zł")
         if i.get("interest_amount"):
-            emit(store, "interest", f"Nota odsetkowa {_f(i['interest_amount'])} zł",
-                 f"Do faktury {i['number']} dołączono notę odsetkową {i.get('interest_note') or ''}. Sprawdź, czy poprzednia faktura jest opłacona.", "int:" + i["number"], now)
+            emit(store, "interest", f"⚠️ Nota odsetkowa {_f(i['interest_amount'])} zł",
+                 f"Do faktury {i['number']} dołączono notę odsetkową {i.get('interest_note') or ''}. Sprawdź, czy poprzednia faktura jest opłacona.", "int:" + i["number"], now, short="Sprawdź, czy poprzednia faktura jest opłacona")
 
 
 def check_usage(store, daily: list[dict], now: datetime | None = None):
@@ -191,9 +211,9 @@ def check_usage(store, daily: list[dict], now: datetime | None = None):
     med = statistics.median(base) if base else 0
     lim = max(ev["min_m3"], ev["factor"] * med)
     if row["home"] > lim:
-        emit(store, "usage_spike", f"Nietypowe zużycie wody: {_f(row['home'], 1)} m³",
+        emit(store, "usage_spike", f"🚰 Wczoraj {_f(row['home'], 1)} m³ w domu",
              f"{_d(yday)}: dom zużył {_f(row['home'], 1)} m³ (zwykle ok. {_f(med, 1)} m³ na dobę), ogród {_f(row['sub'], 1)} m³. "
-             "Sprawdź, czy nie ma wycieku, a woda do ogrodu idzie przez podlicznik.", "spike:" + yday, now)
+             "Sprawdź, czy nie ma wycieku, a woda do ogrodu idzie przez podlicznik.", "spike:" + yday, now, short=f"Zwykle {_f(med, 1)} m³, sprawdź wyciek")
 
 
 def check_no_invoice(store, now: datetime | None = None):
@@ -211,21 +231,21 @@ def check_no_invoice(store, now: datetime | None = None):
         return
     if any(i["issue_date"] >= sent.date().isoformat() for i in store.invoices()):
         return
-    emit(store, "no_invoice", "Brak faktury po wysłaniu odczytów",
+    emit(store, "no_invoice", f"📭 Brak faktury {int(ev['days'])} dni po odczytach",
          f"Odczyty wysłano {sent.strftime('%d.%m')}, a faktury nadal nie ma ({int(ev['days'])} dni). Sprawdź pocztę lub portal eBOK.",
-         "noinv:" + sub["month"], now)
+         "noinv:" + sub["month"], now, short=f"Odczyty wysłane {sent.strftime('%d.%m')}")
 
 
 def check_sync(store, now: datetime | None = None):
     st = state.snapshot()
     failed = store.failed_mails()
     if failed:
-        emit(store, "sync_problem", "Nie udało się odczytać faktury z maila",
+        emit(store, "sync_problem", "❌ Nie odczytano faktury z maila",
              f"{len(failed)} mail(i) z PDF nie zostały sparsowane. Możliwy nowy format faktury. Pobierz je w zakładce Status.",
-             "parse:" + ",".join(sorted(f["uid"] for f in failed))[:200], now)
+             "parse:" + ",".join(sorted(f["uid"] for f in failed))[:200], now, short=f"{len(failed)} PDF do sprawdzenia w Statusie")
     if st.get("last_error") and st.get("last_ok") is None and st.get("last_run"):
-        emit(store, "sync_problem", "Synchronizacja poczty nie działa", str(st["last_error"])[:300],
-             "sync:" + datetime.now(_tz()).strftime("%Y-%m-%d"), now)
+        emit(store, "sync_problem", "❌ Synchronizacja poczty nie działa", str(st["last_error"])[:300],
+             "sync:" + datetime.now(_tz()).strftime("%Y-%m-%d"), now, short=str(st["last_error"])[:80])
 
 
 def list_services() -> list[dict]:

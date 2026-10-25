@@ -596,7 +596,7 @@ async function renderNotif(){
   const s=R.settings;
   const rows=Object.entries(R.events).map(([k,e])=>{const v=s.events[k];
     const pr=e.params.map(p=>`<span class="hint" style="margin:0">${EV_PARAM[p][0]} <input type="number" step="any" data-ev="${k}" data-p="${p}" value="${v[p]}" style="width:70px"> ${EV_PARAM[p][1]}</span>`).join(" ");
-    return `<div class="ev"><label class="chk"><input type="checkbox" data-ev="${k}" data-en="1" ${v.enabled?"checked":""}> <b>${esc(e.name)}</b></label><div class="hint" style="margin:2px 0 4px 26px">${esc(e.desc)} ${pr}</div></div>`}).join("");
+    return `<div class="ev"><label class="chk"><input type="checkbox" data-ev="${k}" data-en="1" ${v.enabled?"checked":""}> <b>${esc(e.name)}</b></label> <button class="chip" data-test="${k}" style="padding:2px 8px;font-size:12px;margin-left:6px">Wyślij próbne</button><div class="hint" style="margin:2px 0 4px 26px">${esc(e.desc)} ${pr}</div></div>`}).join("");
   const log=R.log.map(l=>`<tr><td>${esc(new Date(l.at*1000).toLocaleString("pl-PL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))}</td><td>${esc(R.events[l.kind]?R.events[l.kind].name:l.kind)}</td><td>${esc(l.title)}${l.message?'<div class="hint" style="margin:2px 0 0;white-space:pre-line">'+esc(l.message)+"</div>":""}</td></tr>`).filter((_,i)=>R.log[i].kind!=="seed").join("");
   el.innerHTML=`<div class="card"><h2>Powiadomienia</h2>
   <p class="hint">Dodatek daje znać w HA (powiadomienie trwałe), opcjonalnie na telefon oraz zdarzeniem <code>gpk_water_event</code> dla Twoich automatyzacji.</p>
@@ -614,9 +614,11 @@ async function renderNotif(){
     msg(r.ok?"Zapisano":await r.text())};
   $("#n_save").onclick=save;
   let tm=null; el.querySelector(".card").addEventListener("change",()=>{clearTimeout(tm);tm=setTimeout(save,400)});
-  $("#n_test").onclick=async()=>{msg("Wysyłam…");
+  el.querySelectorAll("[data-test]").forEach(bt=>bt.onclick=()=>sendTest(bt.dataset.test));
+  $("#n_test").onclick=()=>sendTest(null);
+  async function sendTest(kind){msg("Wysyłam…");
     const sv=[...el.querySelectorAll("#n_svc input:checked")].map(x=>x.value);
-    const r=await (await fetch("api/notifications/test",{method:"POST",body:JSON.stringify({notify_services:sv})})).json();
+    const r=await (await fetch("api/notifications/test",{method:"POST",body:JSON.stringify({notify_services:sv,kind})})).json();
     const to=r.services.length?"urządzenia: "+r.services.map(x=>x.replace("notify.","")).join(", "):"tylko powiadomienie w HA (nie zaznaczono żadnego urządzenia)";
     msg(r.errors.length?`Błąd z HA: ${r.errors.join("; ")}. Próbowałem: ${to}.`:`Wysłano na ${to}. Jeśli nie dotarło na telefon, sprawdź w HA, czy usługa działa (Narzędzia deweloperskie, Akcje).`)};
 }
