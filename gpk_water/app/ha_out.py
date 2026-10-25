@@ -40,6 +40,13 @@ def publish(host, port, user, password, values: dict, prefix="homeassistant", se
         c.username_pw_set(user, password)
     c.connect(host, port, 30)
     c.loop_start()
+    infos = []
+    _pub = c.publish
+
+    def pub(*a, **k):
+        infos.append(_pub(*a, **k))
+        return infos[-1]
+    c.publish = pub
     for old in (REMOVED if sensors is None else []):  # usuń encje wycofane z dodatku
         c.publish(f"{prefix}/sensor/gpk_water/{old}/config", "", retain=True)
     for key, name, unit, dclass, sclass, icon in (sensors or SENSORS):
@@ -57,8 +64,15 @@ def publish(host, port, user, password, values: dict, prefix="homeassistant", se
         v = values.get(key)
         if v is not None:
             c.publish(f"gpk_water/{key}", str(v), retain=True)
-    c.loop_stop()
-    c.disconnect()
+    try:  # poczekaj aż wszystkie wiadomości wyjdą do brokera (inaczej disconnect może je uciąć)
+        for i in infos:
+            i.wait_for_publish(timeout=15)
+        bad = [i for i in infos if not i.is_published()]
+        if bad:
+            raise RuntimeError(f"MQTT: nie wysłano {len(bad)} z {len(infos)} wiadomości (broker {host}:{port})")
+    finally:
+        c.loop_stop()
+        c.disconnect()
 
 
 # szacunek bieżącego okresu z liczników w HA (osobna lista, publikowana co kilkanaście minut)

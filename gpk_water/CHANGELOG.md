@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.1
+- MQTT: dodatek czeka na dostarczenie wszystkich wiadomości do brokera przed rozłączeniem (wcześniej encje mogły nie powstawać w HA) i zgłasza błąd, gdy się nie uda.
+
 ## 0.7.0
 - Powiadomienia mają krótkie tytuły z kluczową informacją (np. „🧾 Faktura GPK 194,00 zł") i jednolinijkową treść na telefonie; pełne szczegóły zostają w powiadomieniu w HA.
 - Przy każdym zdarzeniu w zakładce Powiadomienia jest przycisk „Wyślij próbne" z przykładem tego powiadomienia.
