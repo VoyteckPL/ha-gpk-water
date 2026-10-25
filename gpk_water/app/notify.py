@@ -11,7 +11,7 @@ def _data(svc: str, title: str, message: str) -> dict:
     d = {"title": title, "message": message}
     if svc.startswith("notify.mobile_app_"):
         # tapnięcie nie otwiera aplikacji, tylko rozwija pełną treść (Android); długi tekst w stylu "bigtext"
-        d["data"] = {"clickAction": "noAction", "tag": "gpk_water", "group": "gpk_water"}
+        d["data"] = {"clickAction": "noAction"}
     return d
 
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.6
+- Powiadomienie na telefon bez grupowania (tag/group), żeby Android nie zwijał treści.
+
 ## 0.6.5
 - Próbne powiadomienie jest teraz długie (do sprawdzenia rozwijania treści na telefonie).
 
