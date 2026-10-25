@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.6
+- Nagłówek na telefonie: znacznik synchronizacji to sama kropka (tekst po dotknięciu), podsumowanie „75 faktur · 2020–2026” mieści się w całości.
+
 ## 0.5.5
 - Nagłówek na telefonie w jednym rzędzie: mniejsze logo, krótszy tytuł, mniejszy znacznik synchronizacji i przycisk odświeżania.
 

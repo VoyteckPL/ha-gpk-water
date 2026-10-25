@@ -99,7 +99,7 @@ input{box-sizing:border-box;max-width:100%}.form input[type=time]{width:132px}
 .chk{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink)}.ev{padding:6px 0;border-top:1px solid var(--line)}
 @media(max-width:560px){.form{grid-template-columns:1fr}.form>label{padding-top:0}}
 @media(max-width:560px){.seg button{padding:5px 8px;font-size:12px}#fyears button{padding:5px 5px;font-size:12px}.filters{gap:6px;position:static}.kpi .val{font-size:22px}main{padding:12px}.chartbox{height:260px}}
-@media(max-width:560px){header{padding-top:6px}.top{flex-wrap:nowrap;gap:7px}.logo{padding:3px 6px}.logo img{height:20px}.ttl{min-width:0}.ttl h1{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ttl small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px}.pill{padding:3px 7px;font-size:10.5px;gap:4px}.dot{width:7px;height:7px}.iconbtn{padding:3px 8px;font-size:13px}}
+@media(max-width:560px){header{padding-top:6px}.top{flex-wrap:nowrap;gap:7px}.logo{padding:3px 6px}.logo img{height:20px}.ttl{min-width:0}.ttl h1{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ttl small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px}.pill{padding:6px;gap:0}.pill span:last-child{display:none}.dot{width:7px;height:7px}.iconbtn{padding:2px 7px;font-size:13px}}
 </style>
 </head>
 <body>
@@ -107,7 +107,7 @@ input{box-sizing:border-box;max-width:100%}.form input[type=time]{width:132px}
   <div class="top">
     <div class="logo"><img src="static/logo.png" alt="GPK Szemud"></div>
     <div class="ttl"><h1>Faktury za wodę</h1><small id="sub">ładowanie…</small></div>
-    <span class="pill" id="syncpill"><span class="dot wait"></span><span>…</span></span>
+    <span class="pill" id="syncpill" title="Stan synchronizacji"><span class="dot wait"></span><span>…</span></span>
     <button class="iconbtn" id="refresh" title="Odśwież">⟳</button>
   </div>
   <nav id="nav">
@@ -512,12 +512,13 @@ function renderStatus(){
     ${fails.map(f=>`<div class="mono hint">${esc(f.note)}</div>`).join("")}`:'<p class="hint">Brak. Wszystkie faktury zostały odczytane. ✓</p>'}</div>`;
   const dot=$("#syncpill");
   dot.innerHTML=S.last_error?`<span class="dot err"></span><span>błąd sync</span>`:S.last_ok?`<span class="dot ok"></span><span>${ago(S.last_ok)}</span>`:`<span class="dot wait"></span><span>oczekiwanie</span>`;
+  dot.title="Synchronizacja: "+dot.textContent;
 }
 
 function renderAll(){
   INV=DATA.invoices.map(enrich);
   if(!INV.length){$("#t-over").innerHTML=`<div class="card empty">Brak faktur w bazie. Poczekaj na pierwszy przebieg synchronizacji (Status).</div>`;return}
-  $("#sub").textContent=`${INV.length} faktur · ${fmtD(INV[0].issue_date)} – ${fmtD(INV[INV.length-1].issue_date)} · v${DATA.version}`;
+  $("#sub").textContent=`${INV.length} faktur · ${INV[0].issue_date.slice(0,4)}–${INV[INV.length-1].issue_date.slice(0,4)} · v${DATA.version}`;
   renderOverview(); renderInv(); renderStatus(); loadMeters();
   show(cur,true);
 }
