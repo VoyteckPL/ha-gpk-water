@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.5
+- Próbne powiadomienie jest teraz długie (do sprawdzenia rozwijania treści na telefonie).
+
 ## 0.6.4
 - Powiadomienie na telefonie: tapnięcie nie otwiera już HA, tylko rozwija pełną treść (Android; na iOS rozwija się przytrzymaniem lub pociągnięciem w dół).
 

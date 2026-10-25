@@ -105,7 +105,9 @@ def test(store, services: list | None = None) -> dict:
     """Próbne powiadomienie na wskazane (lub zapisane) urządzenia; zwraca szczegóły z błędami z HA."""
     s = get_settings()
     svcs = s["notify_services"] if services is None else [("notify." + x if not x.startswith("notify.") else x) for x in services if x]
-    ok = notify.send("GPK Szemud: test powiadomień", "Jeśli to widzisz, powiadomienia działają.", "test", svcs,
+    ok = notify.send("GPK Szemud: test powiadomień", "Jeśli to widzisz, powiadomienia działają.\n\nTo długie powiadomienie testowe - sprawdź, czy da się je rozwinąć bez otwierania HA.\n"
+                     + "\n".join(f"Linia {n}: przykładowy wiersz podsumowania faktury, zużycie i koszt za okres." for n in range(1, 13))
+                     + "\n\nKoniec wiadomości - jeśli widzisz ten wiersz, całość się rozwinęła.", "test", svcs,
                      "gpk_water_test", persistent=True)
     errs = list(notify.LAST.get("errors") or [])
     if not ok and not errs:
