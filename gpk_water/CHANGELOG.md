@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.3
+- Powiadomienia: ustawienia zapisują się od razu po zmianie (wcześniej trzeba było kliknąć Zapisz, inaczej po wyjściu z zakładki zaznaczenia znikały).
+
 ## 0.6.2
 - „Koszt faktur" ma własne filtry: 12 mies. / Rok (jeden lub kilka lat do porównania) / Lata - zawsze w ujęciu miesięcznym lub rocznym, z podziałem na składniki.
 - „Ceny za m³" ma własne filtry: 12 mies. / 2 lata / 5 lat / Wszystko (domyślnie cały okres).

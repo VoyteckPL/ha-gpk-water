@@ -607,11 +607,13 @@ async function renderNotif(){
   <p style="margin-top:12px"><button class="chip" id="n_save">Zapisz</button> <button class="chip" id="n_test">Wyślij próbne</button> <span class="hint" id="n_msg" style="margin-left:8px"></span></p></div>
   <div class="card" style="margin-top:12px"><h2>Ostatnio wysłane</h2><div class="tscroll"><table><tr><th class="l">Kiedy</th><th class="l">Rodzaj</th><th class="l">Treść</th></tr>${log||'<tr><td colspan=3>Jeszcze nic</td></tr>'}</table></div></div>`;
   const msg=t=>$("#n_msg").textContent=t;
-  $("#n_save").onclick=async()=>{
+  const save=async()=>{
     const ev={}; el.querySelectorAll("[data-ev]").forEach(x=>{const k=x.dataset.ev;ev[k]=ev[k]||{};if(x.dataset.en)ev[k].enabled=x.checked;else ev[k][x.dataset.p]=x.value});
     const b={notify_services:[...el.querySelectorAll("#n_svc input:checked")].map(x=>x.value),persistent:$("#n_per").checked,quiet:$("#n_q").checked,quiet_from:$("#n_qf").value,quiet_to:$("#n_qt").value,events:ev};
     const r=await fetch("api/notifications/settings",{method:"POST",body:JSON.stringify(b)});
     msg(r.ok?"Zapisano":await r.text())};
+  $("#n_save").onclick=save;
+  let tm=null; el.querySelector(".card").addEventListener("change",()=>{clearTimeout(tm);tm=setTimeout(save,400)});
   $("#n_test").onclick=async()=>{msg("Wysyłam…");
     const sv=[...el.querySelectorAll("#n_svc input:checked")].map(x=>x.value);
     const r=await (await fetch("api/notifications/test",{method:"POST",body:JSON.stringify({notify_services:sv})})).json();
