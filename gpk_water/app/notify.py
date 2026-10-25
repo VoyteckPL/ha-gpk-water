@@ -15,10 +15,12 @@ def send(title: str, message: str, kind: str = "info", notify_service: str = "",
     ]
     if not persistent:
         msgs.pop(0)
-    svc = (notify_service or "").strip()
-    if svc.startswith("notify."):
-        msgs.append({"type": "call_service", "domain": "notify", "service": svc.split(".", 1)[1],
-                     "service_data": {"title": title, "message": message}})
+    svcs = [notify_service] if isinstance(notify_service, str) else list(notify_service or [])
+    for svc in svcs:
+        svc = (svc or "").strip()
+        if svc.startswith("notify."):
+            msgs.append({"type": "call_service", "domain": "notify", "service": svc.split(".", 1)[1],
+                         "service_data": {"title": title, "message": message}})
     try:
         res = ha_out.ws_batch(msgs)
     except Exception as e:  # noqa: BLE001

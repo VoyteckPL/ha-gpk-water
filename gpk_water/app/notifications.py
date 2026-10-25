@@ -24,11 +24,14 @@ EVENTS = {  # klucz: (nazwa, opis, domyślnie włączone, parametry)
     "readings_failed": ("Problem z wysyłką odczytów", "Wysyłka nie powiodła się (po 3 próbach) albo okno wysyłki minęło.", True, {}),
     "sync_problem": ("Problem z pocztą lub fakturą", "Nie udało się odczytać PDF z faktury albo synchronizacja poczty ciągle się nie udaje.", True, {}),
 }
-DEFAULTS = dict(notify_service="", persistent=True, quiet=True, quiet_from="22:00", quiet_to="07:00")
+DEFAULTS = dict(notify_services=[], persistent=True, quiet=True, quiet_from="22:00", quiet_to="07:00")
 
 
 def get_settings() -> dict:
-    saved = meters._read_all().get("notifications") or {}
+    saved = dict(meters._read_all().get("notifications") or {})
+    if saved.get("notify_service") and not saved.get("notify_services"):  # migracja ze starego pola
+        saved["notify_services"] = [saved["notify_service"]]
+    saved.pop("notify_service", None)
     s = {**DEFAULTS, **{k: v for k, v in saved.items() if k != "events"}}
     ev = {}
     for k, (_, _, on, params) in EVENTS.items():
@@ -40,10 +43,10 @@ def get_settings() -> dict:
 
 def save_settings(new: dict) -> dict:
     s = dict(DEFAULTS)
-    svc = str(new.get("notify_service") or "").strip()
-    if svc and not svc.startswith("notify."):
-        svc = "notify." + svc
-    s["notify_service"] = svc
+    raw = new.get("notify_services")
+    if raw is None:
+        raw = [new.get("notify_service")] if new.get("notify_service") else []
+    s["notify_services"] = sorted({("notify." + x if not x.startswith("notify.") else x) for x in (str(v).strip() for v in raw) if x})
     s["persistent"] = bool(new.get("persistent", True))
     s["quiet"] = bool(new.get("quiet", True))
     for k in ("quiet_from", "quiet_to"):
@@ -92,7 +95,7 @@ def emit(store, kind: str, title: str, message: str, key: str, now: datetime | N
         return False
     if store.was_notified(key):
         return False
-    phone = "" if in_quiet(s, now) else s["notify_service"]
+    phone = [] if in_quiet(s, now) else s["notify_services"]
     ok = notify.send(title, message, kind, phone, key, persistent=s["persistent"])
     store.log_notification(key, kind, title, message, ok)
     return ok
@@ -100,7 +103,7 @@ def emit(store, kind: str, title: str, message: str, key: str, now: datetime | N
 
 def test(store) -> bool:
     s = get_settings()
-    return notify.send("GPK Szemud: test powiadomień", "Jeśli to widzisz, powiadomienia działają.", "test", s["notify_service"],
+    return notify.send("GPK Szemud: test powiadomień", "Jeśli to widzisz, powiadomienia działają.", "test", s["notify_services"],
                        "gpk_water_test", persistent=True)
 
 

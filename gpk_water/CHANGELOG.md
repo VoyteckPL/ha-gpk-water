@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.2
+- Powiadomienia: można zaznaczyć kilka urządzeń naraz (np. telefon swój i żony), każde dostaje powiadomienie.
+
 ## 0.5.1
 - Powiadomienia: usługa telefonu wybierana z listy usług notify z Home Assistant (telefony z aplikacją na górze).
 
