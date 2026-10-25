@@ -4,7 +4,7 @@ import os
 import sys
 import time
 
-from . import ha_out, mailbox, metrics
+from . import ha_out, mailbox, metrics, web
 from .db import Store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -39,6 +39,7 @@ def main():
     o = load_opts()
     os.makedirs("/data", exist_ok=True)
     store = Store("/data/invoices.db")
+    web.start(store)
     interval = max(int(o.get("check_hours", 6)), 1) * 3600
     first = True
     while True:
