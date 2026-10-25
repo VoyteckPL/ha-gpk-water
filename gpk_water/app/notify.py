@@ -31,7 +31,7 @@ def _data(svc: str, title: str, message: str) -> dict:
     d = {"title": title, "message": message}
     if svc.startswith("notify.mobile_app_"):
         # tapnięcie nie otwiera aplikacji, tylko rozwija pełną treść (Android); długi tekst w stylu "bigtext"
-        d["data"] = {"clickAction": "noAction"}  # adres panelu przez ingress dawał 404, więc tapnięcie nic nie otwiera
+        d["data"] = {"clickAction": "noAction", "channel": "Woda GPK", "importance": "high"}  # adres panelu przez ingress dawał 404, więc tapnięcie nic nie otwiera
     return d
 
 

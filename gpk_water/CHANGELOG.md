@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.9
+- Powiadomienia na Androidzie mają własną kategorię „Woda GPK" (osobne ustawienia dźwięku, wibracji i wyglądu w ustawieniach telefonu).
+
 ## 0.6.8
 - Wycofane otwieranie panelu po tapnięciu powiadomienia (dawało 404). Tapnięcie nic nie otwiera.
 
