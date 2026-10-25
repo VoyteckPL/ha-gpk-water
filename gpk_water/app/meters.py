@@ -5,7 +5,7 @@ import os
 import statistics
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from . import ha_out
@@ -94,12 +94,15 @@ def _fetch(main: str, sub: str | None):
         {"type": "recorder/statistics_during_period", "start_time": since, "statistic_ids": ids,
          "period": "day", "types": ["change"]},
         {"type": "get_states"},
+        {"type": "recorder/statistics_during_period", "start_time": (datetime.now(timezone.utc) - timedelta(days=9)).isoformat(),
+         "statistic_ids": ids, "period": "hour", "types": ["change"]},
     ])
     if not res:
         return None
     global TZ_NAME
     TZ_NAME = (res[0] or {}).get("time_zone") or TZ_NAME
-    return dict(config=res[0] or {}, meta=res[1] or [], stats=res[2] or {}, states={s["entity_id"]: s for s in (res[3] or [])})
+    return dict(config=res[0] or {}, meta=res[1] or [], stats=res[2] or {}, states={s["entity_id"]: s for s in (res[3] or [])},
+                stats_h=(res[4] if len(res) > 4 else None) or {})
 
 
 def compute(invoices: list[dict], settings: dict, raw: dict | None, today: date | None = None) -> dict:
@@ -130,6 +133,17 @@ def compute(invoices: list[dict], settings: dict, raw: dict | None, today: date 
         out["error"] = ("Brak statystyk dla wybranego licznika. Encja musi mieć state_class: total_increasing "
                         "(w ESPHome np. state_class: total_increasing przy sensorze pulse_meter/total).")
         return out
+    # dane godzinowe (ostatnie ~9 dni) - do wykresów 24 h i tygodniowego
+    def hourly(eid):
+        h = {}
+        unit = units.get(eid) or (raw["states"].get(eid, {}).get("attributes", {}) or {}).get("unit_of_measurement")
+        for row in (raw.get("stats_h") or {}).get(eid) or []:
+            ts = row["start"] / 1000 if row["start"] > 1e11 else row["start"]
+            h[datetime.fromtimestamp(ts, tz).strftime("%Y-%m-%dT%H")] = _m3(row.get("change"), unit)
+        return h
+    hm, hs = hourly(main), (hourly(sub) if sub else {})
+    out["hourly"] = [dict(t=k, main=round(hm[k], 4), sub=round(hs.get(k, 0), 4), home=round(max(hm[k] - hs.get(k, 0), 0), 4))
+                     for k in sorted(hm)]
     days = sorted(dm)
     out["history_from"] = days[0].isoformat()
     out["daily"] = [dict(d=d.isoformat(), main=round(dm[d], 4), sub=round(ds.get(d, 0), 4),

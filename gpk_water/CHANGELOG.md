@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0
+- Przegląd uporządkowany: 4 kafelki (bieżący okres, prognoza, ostatnia faktura, ceny) i jeden wspólny filtr zakresu dla wszystkich wykresów: 24 h, 7 dni, 30 dni, Rok (z porównaniem lat) i Wszystko.
+- Wykres zużycia z wodomierzy ma teraz widok godzinowy (24 h i 7 dni) oraz wybór szczegółowości (godziny, dni, tygodnie, miesiące). Dom i ogród włączasz klikając legendę.
+- Usunięte: dodatkowe kafelki, osobne przyciski Dom/Ogród i oddzielne zestawy filtrów przy każdym wykresie.
+
 ## 0.5.7
 - Przegląd: pierwszy rząd to „Bieżący okres” (koszt narosły od ostatniej faktury wg liczników) i „Prognoza faktury”, drugi to ostatnia faktura i kompaktowy kafel cen o tej samej wielkości.
 
