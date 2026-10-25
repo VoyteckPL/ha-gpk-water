@@ -118,7 +118,10 @@ class Handler(BaseHTTPRequestHandler):
             for i in invs:
                 i["has_pdf"] = os.path.exists(pdf_path(i["number"]))
             st["published"] = st.get("published") or {}
-            return self._json(dict(version=state.version(), now=time.time(), invoices=invs, status=st,
+            from . import notify as _nt
+            op = _nt.OPEN_TAB["pending"]
+            _nt.OPEN_TAB["pending"] = False
+            return self._json(dict(version=state.version(), now=time.time(), invoices=invs, status=st, open_tab="nt" if op else None,
                                    failed_files=sorted(os.listdir(FAILED_DIR)) if os.path.isdir(FAILED_DIR) else [],
                                    sender=self.opts.get("sender"), since=self.opts.get("since")))
         if path == "api/readings":

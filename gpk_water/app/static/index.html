@@ -678,6 +678,7 @@ async function load(){
   if(!DATA.invoices.length){$("#sub").textContent="brak faktur";$("#t-over").innerHTML=`<div class="card empty">Brak faktur w bazie. Poczekaj na pierwszy przebieg synchronizacji.</div>`;
     DATA.invoices=[];INV=[]; $("#t-stat").innerHTML=`<div class="card"><h2>Status</h2><p class="hint">${esc(DATA.status.last_error||"Czekam na pierwszą synchronizację…")}</p></div>`;return}
   renderAll();
+  if(DATA.open_tab) show(DATA.open_tab);
 }
 $("#refresh").onclick=()=>{ENT=null;load()};
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{if(DATA&&INV.length)drawCharts()});

@@ -4,6 +4,26 @@ import logging
 from . import ha_out
 
 log = logging.getLogger("gpk.notify")
+_SLUG: dict = {}
+OPEN_TAB = {"pending": False}  # po wysłaniu powiadomienia panel otworzy zakładkę Powiadomienia
+
+
+def _panel_url() -> str:
+    """Ścieżka panelu dodatku w HA (do kliknięcia w powiadomienie); pusta, gdy nie da się ustalić."""
+    if "u" not in _SLUG:
+        _SLUG["u"] = ""
+        try:
+            import json
+            import urllib.request
+            tok = ha_out._token()
+            if tok:
+                req = urllib.request.Request("http://supervisor/addons/self/info", headers={"Authorization": "Bearer " + tok})
+                slug = json.load(urllib.request.urlopen(req, timeout=8)).get("data", {}).get("slug")
+                if slug:
+                    _SLUG["u"] = "/hassio/ingress/" + slug
+        except Exception as e:  # noqa: BLE001
+            log.warning("nie ustalono adresu panelu: %s", e)
+    return _SLUG["u"]
 LAST: dict = {"errors": []}
 
 
@@ -11,7 +31,9 @@ def _data(svc: str, title: str, message: str) -> dict:
     d = {"title": title, "message": message}
     if svc.startswith("notify.mobile_app_"):
         # tapnięcie nie otwiera aplikacji, tylko rozwija pełną treść (Android); długi tekst w stylu "bigtext"
-        d["data"] = {"clickAction": "noAction"}
+        u = _panel_url()
+        # tapnięcie otwiera panel dodatku na zakładce Powiadomienia (pełna treść); bez adresu - nic nie robi
+        d["data"] = {"clickAction": u or "noAction", "url": u} if u else {"clickAction": "noAction"}
     return d
 
 
@@ -30,6 +52,8 @@ def send(title: str, message: str, kind: str = "info", notify_service: str = "",
         if svc.startswith("notify."):
             msgs.append({"type": "call_service", "domain": "notify", "service": svc.split(".", 1)[1],
                          "service_data": _data(svc, title, message)})
+    if any((x or "").startswith("notify.mobile_app_") for x in svcs):
+        OPEN_TAB["pending"] = True
     errors: list = []
     LAST["errors"] = errors
     try:

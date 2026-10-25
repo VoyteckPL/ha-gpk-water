@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.7
+- Tapnięcie powiadomienia na telefonie otwiera panel dodatku od razu na zakładce Powiadomienia (pełna treść, ostatnio wysłane).
+
 ## 0.6.6
 - Powiadomienie na telefon bez grupowania (tag/group), żeby Android nie zwijał treści.
 
