@@ -2,11 +2,27 @@
 import email
 import imaplib
 import logging
+import os
+import re
 from email.header import decode_header
 
 from .parser import ParseError, parse_invoice_pdf
 
 log = logging.getLogger("gpk.mail")
+
+FAILED_DIR = "/share/gpk_water_failed"
+
+
+def _save_failed(uid: str, name: str, payload: bytes):
+    try:
+        os.makedirs(FAILED_DIR, exist_ok=True)
+        safe = re.sub(r"[^\w.\-]", "_", name or "faktura.pdf")
+        path = os.path.join(FAILED_DIR, f"{uid}_{safe}")
+        with open(path, "wb") as f:
+            f.write(payload)
+        log.info("zapisano nieudany PDF: %s", path)
+    except OSError as e:
+        log.warning("nie udało się zapisać PDF do %s: %s", FAILED_DIR, e)
 
 
 def _fname(part) -> str:
@@ -51,6 +67,7 @@ def sync(store, host: str, user: str, password: str, sender: str, since: str, fo
                 except (ParseError, Exception) as e:  # noqa: BLE001
                     log.warning("mail %s (%s): nie sparsowano: %s", uid, _fname(part), e)
                     store.mark_mail(uid, "failed", f"{_fname(part)}: {e}")
+                    _save_failed(uid, _fname(part), payload)
                     stats["failed"] += 1
                     continue
                 for w in inv["warnings"]:
