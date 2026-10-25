@@ -14,6 +14,11 @@ Czyta maile od `faktury@gpkszemud.pl` z Gmaila (IMAP), parsuje PDF-y (`pdftotext
 Przegląd (6 kafelków, filtry, wykresy: koszt, zużycie, ceny, tabela rok po roku),
 Faktury (sortowanie, szukanie, szczegóły, PDF, CSV), Encje HA (prawdziwe entity_id z rejestru HA, karta Lovelace) i Status (synchronizacja, nieodczytane PDF-y).
 
+## Wodomierze z HA (zakładka „Liczniki”)
+Wskaż encje liczników (np. z ESPHome, `state_class: total_increasing`; jednostka m³ lub l). Dodatek bierze dzienne zużycie ze statystyk HA i liczy:
+koszt od ostatniej faktury (dom = główny - ogród, ścieki tylko od domu, abonament proporcjonalnie), szacunek następnej faktury oraz kontrolę licznik vs faktura.
+Sensory `est_*` publikowane przez MQTT co 15 min.
+
 ## Rozdzielenie dom / ogród
 Pozycja "Woda" o ilości równej zużyciu podlicznika to ogród (bez ścieków); reszta wody to dom. Ścieki = główny - podlicznik.
 

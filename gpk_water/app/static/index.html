@@ -8,12 +8,12 @@
 :root{
   --bg:#f3f5fa;--card:#fff;--ink:#1b2233;--mute:#6a7488;--line:#e3e8f1;--accent:#2b3990;--accent2:#4aa3df;
   --good:#2e9d57;--bad:#d64545;--warn:#d98e1a;--chip:#eef2fb;--shadow:0 1px 2px rgba(20,30,60,.06),0 4px 16px rgba(20,30,60,.05);
-  --c-home:#3b82c4;--c-garden:#4caf50;--c-sewage:#e0a030;--c-abo:#8b95a7;--c-other:#d9534f;--c-total:#2b3990;--c-trend:#d64545;--c-cost:#8e6bbf;--c-avg:#12a0a0;
+  --c-home:#3b82c4;--c-garden:#4caf50;--c-sewage:#e0a030;--c-abo:#8b95a7;--c-other:#d9534f;--c-total:#2b3990;--c-trend:#d64545;--c-cost:#8e6bbf;--c-avg:#12a0a0;--c-est:#e8590c;
 }
 @media(prefers-color-scheme:dark){:root{
   --bg:#0e1320;--card:#161d2e;--ink:#e8edf7;--mute:#93a0b8;--line:#25304a;--accent:#7f93ee;--accent2:#5db3ec;
   --chip:#1e2840;--shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);--c-total:#8fa2f5;
-  --c-home:#58a6e6;--c-garden:#66c06a;--c-sewage:#efb54a;--c-abo:#9aa6bb;--c-other:#ee6b67;--c-trend:#ff7d78;--c-cost:#b394e0;--c-avg:#3ccaca;}}
+  --c-home:#58a6e6;--c-garden:#66c06a;--c-sewage:#efb54a;--c-abo:#9aa6bb;--c-other:#ee6b67;--c-trend:#ff7d78;--c-cost:#b394e0;--c-avg:#3ccaca;--c-est:#ff8a4c;}}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
@@ -59,7 +59,7 @@ h2{font-size:15.5px;margin:0 0 2px}
 .seg{display:inline-flex;background:var(--chip);border-radius:11px;padding:3px}
 .seg button{background:none;border:0;color:var(--mute);padding:6px 12px;border-radius:9px;font-weight:550;font-size:13.5px}
 .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
-select,input[type=search]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit}
+select,input[type=search],input[list]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;min-width:0}
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);border-radius:999px;padding:5px 11px;font-size:13px;cursor:pointer;user-select:none;border:1px solid transparent}
 .chip.off{opacity:.45}.chip.on{border-color:var(--accent);color:var(--accent);font-weight:600}
 .chip i{width:10px;height:10px;border-radius:3px;display:inline-block}
@@ -98,6 +98,7 @@ pre{background:var(--chip);border-radius:12px;padding:12px;overflow:auto;font-si
   </div>
   <nav id="nav">
     <button data-t="over" class="on">Przegląd</button>
+    <button data-t="met">Liczniki</button>
     <button data-t="inv">Faktury</button>
     <button data-t="ent">Encje HA</button>
     <button data-t="stat">Status</button>
@@ -105,6 +106,7 @@ pre{background:var(--chip);border-radius:12px;padding:12px;overflow:auto;font-si
 </div></header>
 <main>
 <section id="t-over"></section>
+<section id="t-met" class="hide"></section>
 <section id="t-inv" class="hide"></section>
 <section id="t-ent" class="hide"></section>
 <section id="t-stat" class="hide"></section>
@@ -233,6 +235,7 @@ function renderOverview(){
     return `<tr class="yr" data-y="${y}" style="cursor:pointer"><td>${y}</td><td>${r.length}</td><td>${nf(r.reduce((s,i)=>s+i.water_home_m3,0),0)}</td><td>${nf(r.reduce((s,i)=>s+i.water_garden_m3,0),0)}</td><td><b>${nf(g)}</b></td><td>${nf(m?g/m:null)}</td></tr>`}).join("");
   $("#t-over").innerHTML=`
   <div class="grid kpis">
+    <div id="met-slot" style="display:contents"></div>
     ${kpi("Ostatnia faktura",nf(L.invoice_gross),"zł",`${fmtD(L.issue_date)} · ${nf(L.water_home_m3,0)}+${nf(L.water_garden_m3,0)} m³`,"--c-total","🧾","last")}
     ${kpi("Cena wody",nf(L.wp,2),"zł/m³",arrow(pct(L.wp,P?P.wp:null))+" vs poprzednia","--c-home","💧","prices")}
     ${kpi("Cena ścieków",nf(L.sp,2),"zł/m³",arrow(pct(L.sp,P?P.sp:null))+" vs poprzednia","--c-sewage","🚰","prices")}
@@ -277,6 +280,66 @@ function renderOverview(){
 function openInvoice(num){
   Q=num;YF="all";SORT={k:"t",asc:false};renderInv();show("inv");
   const tr=document.querySelector("#tb tr.row");if(tr)tr.click();
+}
+
+let MET=null;
+function fillMetTile(){
+  const slot=$("#met-slot"); if(!slot||!MET) return;
+  let html="";
+  if(!MET.configured) html=kpi("Wodomierze z HA","Podłącz","","szacunek kosztu na bieżąco","--c-est","🔌","met");
+  else if(MET.error||!MET.estimate) html=kpi("Wodomierze z HA","Błąd","",esc((MET.error||"brak danych").slice(0,60)),"--c-other","⚠️","met");
+  else{const e=MET.estimate;html=kpi("Od ostatniej faktury",nf(e.total,0),"zł",`${e.days} dni · ok. ${nf(e.next_invoice,0)} zł na fakturze`,"--c-est","⏱️","met")}
+  slot.innerHTML=html;
+  const k=slot.querySelector(".kpi"); if(k){k.onclick=()=>show("met");k.onkeydown=e=>{if(e.key==="Enter"){show("met")}}}
+}
+async function loadMeters(){try{MET=await (await fetch("api/meters")).json();fillMetTile()}catch(e){}}
+async function renderMeters(){
+  const el=$("#t-met"); el.innerHTML=`<div class="empty">Pobieram dane z liczników…</div>`;
+  let M,C=[];
+  try{[M,C]=await Promise.all([fetch("api/meters").then(r=>r.json()),fetch("api/meters/candidates").then(r=>r.json()).catch(()=>[])])}
+  catch(e){el.innerHTML=`<div class="card empty">Nie udało się odczytać liczników.</div>`;return}
+  MET=M; fillMetTile();
+  const sel=M.settings||{}; const e=M.estimate;
+  const dl=C.map(c=>`<option value="${esc(c.entity_id)}">${esc(c.name)} · ${esc(c.state)} ${esc(c.unit)}</option>`).join("");
+  const cfg=`<div class="card cc" style="--kc:var(--c-est)"><h2>Wodomierze z Home Assistant</h2>
+    <p class="hint">Wybierz encje z listy lub wpisz własne (np. ESPHome). Encja musi mieć <span class="mono">state_class: total_increasing</span>, żeby HA liczył statystyki.</p>
+    <div class="kv" style="grid-template-columns:minmax(110px,170px) 1fr;align-items:center;margin:10px 0">
+      <div>Licznik główny</div><div><input list="dlm" id="mmain" value="${esc(sel.main||"")}" placeholder="sensor.wodomierz_glowny" style="width:100%"></div>
+      <div>Licznik ogrodowy</div><div><input list="dlm" id="msub" value="${esc(sel.sub||"")}" placeholder="opcjonalnie, podlicznik" style="width:100%"></div></div>
+    <datalist id="dlm">${dl}</datalist>
+    <button class="chip on" id="msave">Zapisz i przelicz</button> <span class="hint" id="mmsg" style="margin-left:8px"></span>
+    <p class="hint" style="margin-top:10px">Znaleziono ${C.length} encji wody w HA. „Główny” liczy całą wodę (dom + ogród), „ogrodowy” tylko ogród. Dom = główny − ogród.</p></div>`;
+  let body="";
+  if(M.configured&&M.error) body=`<div class="card" style="margin-top:14px;border-left:4px solid var(--bad)"><b>Nie można policzyć szacunku</b><p class="hint">${esc(M.error)}</p></div>`;
+  else if(M.configured&&e){
+    const t=(l,v,u,sub,c,ic)=>`<div class="card kpi" style="--kc:var(${c});cursor:default"><div class="lbl"><span>${l}</span><span class="ic">${ic}</span></div><div class="val">${v}<small>${u}</small></div><div class="sub">${sub||"&nbsp;"}</div></div>`;
+    const acc=(M.accuracy||[]).slice().reverse();
+    const cell=(inv,ha,p)=>p==null?"–":`${nf(inv,0)} / ${nf(ha,1)} <span class="${Math.abs(p)>10?"up":"down"}">(${p>0?"+":""}${nf(p,1)}%)</span>`;
+    body=`<div class="grid kpis" style="margin-top:14px">
+      ${t("Razem od faktury",nf(e.total),"zł",`${e.days} dni od ${fmtD(e.since)}`,"--c-est","⏱️")}
+      ${t("Dom",nf(e.cost_home+e.cost_abo),"zł",`${nf(e.m3_home,2)} m³ + abonament`,"--c-home","🏠")}
+      ${t("Ogród",nf(e.cost_garden),"zł",`${nf(e.m3_garden,2)} m³`,"--c-garden","🌿")}
+      ${t("Następna faktura",nf(e.next_invoice,0),"zł",`szacunek na ${e.typical_days} dni`,"--c-cost","🧾")}
+      ${t("Tempo (14 dni)",e.l_per_day!=null?nf(e.l_per_day,0):"–","l/dobę","dom + ogród","--c-avg","💧")}</div>
+      <div class="card cc" style="margin-top:14px;--kc:var(--c-home)"><h2>Zużycie dzienne</h2><p class="hint">Z liczników w HA (od ${fmtD(M.history_from)}), ostatnie 60 dni.</p><div class="chartbox"><canvas id="cm"></canvas></div></div>
+      <div class="card cc" style="margin-top:14px;--kc:var(--c-sewage)"><h2>Kontrola: licznik vs faktura</h2>
+        <p class="hint">Porównanie zużycia z Twoich liczników z odczytem gminy za ten sam okres. Różnice kilku procent są normalne (godzina odczytu, szacunki gminy).</p>
+        ${acc.length?`<div class="tscroll"><table><thead><tr><th class="l">Faktura</th><th>Okres</th><th>Główny: faktura / HA (m³)</th>${acc[0].inv_sub!=null?"<th>Ogród: faktura / HA (m³)</th>":""}</tr></thead><tbody>
+        ${acc.map(r=>`<tr><td class="l">${fmtD(r.issue_date)}</td><td>${fmtD(r.period_start)} – ${fmtD(r.period_end)}</td><td>${cell(r.inv_main,r.ha_main,r.diff_main_pct)}</td>${r.inv_sub!=null?`<td>${cell(r.inv_sub,r.ha_sub,r.diff_sub_pct)}</td>`:""}</tr>`).join("")}</tbody></table></div>`:`<p class="hint">Historia liczników w HA nie obejmuje jeszcze żadnego pełnego okresu faktury.</p>`}</div>`;
+  }
+  el.innerHTML=cfg+body;
+  $("#msave").onclick=async()=>{const b=$("#msave");b.textContent="Zapisuję…";
+    const r=await fetch("api/meters/settings",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({main:$("#mmain").value,sub:$("#msub").value})});
+    if(!r.ok){$("#mmsg").textContent=await r.text();b.textContent="Zapisz i przelicz";return}
+    renderMeters()};
+  if(M.configured&&e&&M.daily){
+    const D=M.daily.slice(-60);
+    const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y("m³ / dobę","m3")};
+    o.plugins.tooltip.callbacks={title:i=>fmtD(D[i[0].dataIndex].d),label:c=>`${c.dataset.label}: ${nf(c.parsed.y*1000,0)} l`};
+    mk("cm",{type:"bar",data:{labels:D.map(x=>x.d.slice(8)+"."+x.d.slice(5,7)),datasets:[
+      {label:"Dom",data:D.map(x=>x.home),backgroundColor:css("--c-home"),stack:"s"},
+      {label:"Ogród",data:D.map(x=>x.sub),backgroundColor:css("--c-garden"),stack:"s"}]},options:o});
+  }
 }
 
 let SORT={k:"t",asc:false}, Q="", YF="all";
@@ -377,15 +440,16 @@ function renderAll(){
   INV=DATA.invoices.map(enrich);
   if(!INV.length){$("#t-over").innerHTML=`<div class="card empty">Brak faktur w bazie. Poczekaj na pierwszy przebieg synchronizacji (Status).</div>`;return}
   $("#sub").textContent=`${INV.length} faktur · ${fmtD(INV[0].issue_date)} – ${fmtD(INV[INV.length-1].issue_date)} · v${DATA.version}`;
-  renderOverview(); renderInv(); renderStatus();
+  renderOverview(); renderInv(); renderStatus(); loadMeters();
   show(cur,true);
 }
 let cur="over";
 function show(t,keep){
   cur=t; document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["over","inv","ent","stat"].forEach(x=>$("#t-"+x).classList.toggle("hide",x!==t));
+  ["over","met","inv","ent","stat"].forEach(x=>$("#t-"+x).classList.toggle("hide",x!==t));
   if(t==="over") requestAnimationFrame(drawCharts);
   if(t==="ent"&&!keep) renderEnt();
+  if(t==="met"&&!keep) renderMeters();
 }
 $("#nav").onclick=e=>{const t=e.target.dataset.t;if(t)show(t)};
 async function load(){

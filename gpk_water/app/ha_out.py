@@ -34,15 +34,15 @@ SENSORS = [
 ]
 
 
-def publish(host, port, user, password, values: dict, prefix="homeassistant"):
+def publish(host, port, user, password, values: dict, prefix="homeassistant", sensors=None):
     c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2) if hasattr(mqtt, "CallbackAPIVersion") else mqtt.Client()
     if user:
         c.username_pw_set(user, password)
     c.connect(host, port, 30)
     c.loop_start()
-    for old in REMOVED:  # usuń encje wycofane z dodatku
+    for old in (REMOVED if sensors is None else []):  # usuń encje wycofane z dodatku
         c.publish(f"{prefix}/sensor/gpk_water/{old}/config", "", retain=True)
-    for key, name, unit, dclass, sclass, icon in SENSORS:
+    for key, name, unit, dclass, sclass, icon in (sensors or SENSORS):
         cfg = {
             "name": name, "unique_id": f"gpk_water_{key}",
             "state_topic": f"gpk_water/{key}", "device": DEV, "icon": icon,
@@ -59,6 +59,19 @@ def publish(host, port, user, password, values: dict, prefix="homeassistant"):
             c.publish(f"gpk_water/{key}", str(v), retain=True)
     c.loop_stop()
     c.disconnect()
+
+
+# szacunek bieżącego okresu z liczników w HA (osobna lista, publikowana co kilkanaście minut)
+SENSORS_EST = [
+    ("est_total", "Szacunek od ostatniej faktury", PLN, "monetary", None, "mdi:cash-clock"),
+    ("est_home", "Szacunek - dom od faktury", PLN, "monetary", None, "mdi:home-water"),
+    ("est_garden", "Szacunek - ogród od faktury", PLN, "monetary", None, "mdi:sprinkler"),
+    ("est_m3_home", "Zużycie dom od faktury", "m³", "water", None, "mdi:water"),
+    ("est_m3_garden", "Zużycie ogród od faktury", "m³", "water", None, "mdi:sprinkler-variant"),
+    ("est_next_invoice", "Szacowana następna faktura", PLN, "monetary", None, "mdi:receipt-text-clock"),
+    ("est_days", "Dni od ostatniej faktury", "d", None, None, "mdi:calendar-clock"),
+    ("est_l_per_day", "Średnie zużycie (14 dni)", "l/d", None, None, "mdi:water-sync"),
+]
 
 
 # --- historia -> statystyki długoterminowe (recorder/import_statistics) ---
@@ -119,6 +132,25 @@ def _ws():
         ws.close()
         return None
     return ws
+
+
+def ws_batch(msgs: list) -> list | None:
+    """Wysyła komendy websocket HA po kolei; zwraca listę wyników (None przy błędzie komendy)."""
+    ws = _ws()
+    if ws is None:
+        return None
+    out = []
+    try:
+        for n, m in enumerate(msgs, 1):
+            ws.send(json.dumps({**m, "id": n}))
+            while True:
+                r = json.loads(ws.recv())
+                if r.get("id") == n:
+                    out.append(r.get("result") if r.get("success") else None)
+                    break
+    finally:
+        ws.close()
+    return out
 
 
 def fetch_ha_entities() -> dict:

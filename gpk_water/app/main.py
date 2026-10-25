@@ -4,7 +4,9 @@ import os
 import sys
 import time
 
-from . import ha_out, mailbox, metrics, state, web
+import threading
+
+from . import ha_out, mailbox, meters, metrics, state, web
 from .db import Store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -44,11 +46,30 @@ def run_once(o: dict, store: Store):
         log.warning("%d maili z PDF nie sparsowano (nowy format?): %s", len(failed), failed[:5])
 
 
+def meters_loop(o: dict, store: Store, every=900):
+    """Co 15 min: odczyt wodomierzy z HA, szacunek kosztu bieżącego okresu, publikacja sensorów."""
+    while True:
+        try:
+            if meters.load_settings()["main"]:
+                res = meters.refresh(store, force=True)
+                vals = meters.est_values(res)
+                state.update(est_values=vals)
+                if vals:
+                    ha_out.publish(o["mqtt_host"], int(o["mqtt_port"]), o.get("mqtt_user") or None,
+                                   o.get("mqtt_password") or None, vals, sensors=ha_out.SENSORS_EST)
+                elif res.get("error"):
+                    log.warning("liczniki: %s", res["error"])
+        except Exception:  # noqa: BLE001
+            log.exception("pętla liczników")
+        time.sleep(every)
+
+
 def main():
     o = load_opts()
     os.makedirs("/data", exist_ok=True)
     store = Store("/data/invoices.db")
     web.start(store, o)
+    threading.Thread(target=meters_loop, args=(o, store), daemon=True).start()
     interval = max(int(o.get("check_hours", 6)), 1) * 3600
     first = True
     while True:

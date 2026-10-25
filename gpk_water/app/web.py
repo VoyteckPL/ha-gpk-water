@@ -11,7 +11,7 @@ from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
-from . import ha_out, state
+from . import ha_out, meters, state
 from .db import pdf_path
 from .mailbox import FAILED_DIR
 
@@ -27,9 +27,10 @@ _ent_cache = {"t": 0, "data": {}}
 def _entities() -> list[dict]:
     if time.time() - _ent_cache["t"] > 30:
         _ent_cache.update(t=time.time(), data=ha_out.fetch_ha_entities())
-    live, pub = _ent_cache["data"], (state.snapshot().get("published") or {})
+    live, pub = _ent_cache["data"], dict(state.snapshot().get("published") or {})
+    pub.update((state.snapshot().get("est_values") or {}))
     rows = []
-    for key, name, unit, dclass, sclass, icon in ha_out.SENSORS:
+    for key, name, unit, dclass, sclass, icon in ha_out.SENSORS + ha_out.SENSORS_EST:
         uid = f"gpk_water_{key}"
         lv = live.get(uid, {})
         rows.append(dict(kind="sensor", unique_id=uid, name=name, unit=unit, device_class=dclass, icon=icon,
@@ -68,6 +69,21 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001
             self._send(500, f"błąd: {e}".encode(), "text/plain; charset=utf-8")
 
+    def do_POST(self):
+        path = unquote(self.path.split("?")[0]).strip("/")
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(n) or b"{}")
+            if path == "api/meters/settings":
+                main, sub = (body.get("main") or "").strip(), (body.get("sub") or "").strip()
+                if sub and sub == main:
+                    return self._send(400, "Licznik główny i ogrodowy muszą być różne".encode(), "text/plain; charset=utf-8")
+                meters.save_settings(main or None, sub or None)
+                return self._json(meters.refresh(self.store, force=True))
+            self._send(404, b"", "text/plain")
+        except Exception as e:  # noqa: BLE001
+            self._send(500, f"błąd: {e}".encode(), "text/plain; charset=utf-8")
+
     def _route(self, path):
         if path in ("", "index.html"):
             return self._send(200, open(os.path.join(STATIC, "index.html"), "rb").read())
@@ -86,6 +102,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(dict(version=state.version(), now=time.time(), invoices=invs, status=st,
                                    failed_files=sorted(os.listdir(FAILED_DIR)) if os.path.isdir(FAILED_DIR) else [],
                                    sender=self.opts.get("sender"), since=self.opts.get("since")))
+        if path == "api/meters":
+            return self._json(meters.refresh(self.store))
+        if path == "api/meters/candidates":
+            return self._json(meters.candidates())
         if path == "api/entities":
             return self._json(_entities())
         if path.startswith("api/pdf/"):
