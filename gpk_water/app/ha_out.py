@@ -155,7 +155,7 @@ def _ws():
     return ws
 
 
-def ws_batch(msgs: list) -> list | None:
+def ws_batch(msgs: list, errors: list | None = None) -> list | None:
     """Wysyła komendy websocket HA po kolei; zwraca listę wyników (None przy błędzie komendy)."""
     ws = _ws()
     if ws is None:
@@ -168,6 +168,9 @@ def ws_batch(msgs: list) -> list | None:
                 r = json.loads(ws.recv())
                 if r.get("id") == n:
                     out.append(r.get("result") if r.get("success") else None)
+                    if not r.get("success") and errors is not None:
+                        e = r.get("error") or {}
+                        errors.append(f"{m.get('domain', m.get('type'))}.{m.get('service', '')}: {e.get('message') or e.get('code') or 'błąd'}")
                     break
     finally:
         ws.close()

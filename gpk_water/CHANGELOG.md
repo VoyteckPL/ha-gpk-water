@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.3
+- Powiadomienia: „Wyślij próbne” używa aktualnie zaznaczonych urządzeń (nie trzeba najpierw zapisywać) i pokazuje błędy zwrócone przez HA (np. nieistniejąca usługa).
+
 ## 0.5.2
 - Powiadomienia: można zaznaczyć kilka urządzeń naraz (np. telefon swój i żony), każde dostaje powiadomienie.
 

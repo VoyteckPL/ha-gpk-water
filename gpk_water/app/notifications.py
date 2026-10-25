@@ -101,10 +101,16 @@ def emit(store, kind: str, title: str, message: str, key: str, now: datetime | N
     return ok
 
 
-def test(store) -> bool:
+def test(store, services: list | None = None) -> dict:
+    """Próbne powiadomienie na wskazane (lub zapisane) urządzenia; zwraca szczegóły z błędami z HA."""
     s = get_settings()
-    return notify.send("GPK Szemud: test powiadomień", "Jeśli to widzisz, powiadomienia działają.", "test", s["notify_services"],
-                       "gpk_water_test", persistent=True)
+    svcs = s["notify_services"] if services is None else [("notify." + x if not x.startswith("notify.") else x) for x in services if x]
+    ok = notify.send("GPK Szemud: test powiadomień", "Jeśli to widzisz, powiadomienia działają.", "test", svcs,
+                     "gpk_water_test", persistent=True)
+    errs = list(notify.LAST.get("errors") or [])
+    if not ok and not errs:
+        errs = [ha_out.LAST_WS_ERROR or "brak połączenia z HA"]
+    return dict(ok=ok, services=svcs, errors=errs)
 
 
 # ---------- zdarzenia ----------

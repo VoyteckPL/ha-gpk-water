@@ -4,6 +4,7 @@ import logging
 from . import ha_out
 
 log = logging.getLogger("gpk.notify")
+LAST: dict = {"errors": []}
 
 
 def send(title: str, message: str, kind: str = "info", notify_service: str = "", nid: str | None = None,
@@ -21,12 +22,17 @@ def send(title: str, message: str, kind: str = "info", notify_service: str = "",
         if svc.startswith("notify."):
             msgs.append({"type": "call_service", "domain": "notify", "service": svc.split(".", 1)[1],
                          "service_data": {"title": title, "message": message}})
+    errors: list = []
+    LAST["errors"] = errors
     try:
-        res = ha_out.ws_batch(msgs)
+        res = ha_out.ws_batch(msgs, errors)
     except Exception as e:  # noqa: BLE001
         log.warning("powiadomienie nie wysłane: %s", e)
         return False
     if res is None:
         log.warning("powiadomienie nie wysłane: %s", ha_out.LAST_WS_ERROR)
+        return False
+    if errors:
+        log.warning("powiadomienie: błędy HA: %s", "; ".join(errors))
         return False
     return True

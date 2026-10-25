@@ -96,7 +96,7 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError as e:
                     return self._send(400, str(e).encode(), "text/plain; charset=utf-8")
             if path == "api/notifications/test":
-                return self._json(dict(ok=notifications.test(self.store)))
+                return self._json(notifications.test(self.store, body.get("notify_services")))
             if path == "api/energy/rebuild":
                 return self._json(energy.import_all(self.store))
             self._send(404, b"", "text/plain")

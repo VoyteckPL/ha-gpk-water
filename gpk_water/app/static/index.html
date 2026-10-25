@@ -550,7 +550,11 @@ async function renderNotif(){
     const b={notify_services:[...el.querySelectorAll("#n_svc input:checked")].map(x=>x.value),persistent:$("#n_per").checked,quiet:$("#n_q").checked,quiet_from:$("#n_qf").value,quiet_to:$("#n_qt").value,events:ev};
     const r=await fetch("api/notifications/settings",{method:"POST",body:JSON.stringify(b)});
     msg(r.ok?"Zapisano":await r.text())};
-  $("#n_test").onclick=async()=>{msg("Wysyłam…");const r=await (await fetch("api/notifications/test",{method:"POST",body:"{}"})).json();msg(r.ok?"Wysłano - sprawdź HA i telefon":"Nie udało się połączyć z HA")};
+  $("#n_test").onclick=async()=>{msg("Wysyłam…");
+    const sv=[...el.querySelectorAll("#n_svc input:checked")].map(x=>x.value);
+    const r=await (await fetch("api/notifications/test",{method:"POST",body:JSON.stringify({notify_services:sv})})).json();
+    const to=r.services.length?"urządzenia: "+r.services.map(x=>x.replace("notify.","")).join(", "):"tylko powiadomienie w HA (nie zaznaczono żadnego urządzenia)";
+    msg(r.errors.length?`Błąd z HA: ${r.errors.join("; ")}. Próbowałem: ${to}.`:`Wysłano na ${to}. Jeśli nie dotarło na telefon, sprawdź w HA, czy usługa działa (Narzędzia deweloperskie, Akcje).`)};
 }
 const ST_PL={sent:"wysłano",failed:"błąd, ponawiam",pending:"w toku",missed:"nie wysłano"};
 async function renderReadings(){
