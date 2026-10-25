@@ -22,6 +22,7 @@ def run_once(o: dict, store: Store):
     st = mailbox.sync(store, o["imap_host"], o["gmail_user"], o["gmail_app_password"],
                       o["sender"], o["since"])
     log.info("mail: %s", st)
+    mailbox.cleanup_failed(store)
     state.update(mail_stats=st, failed_mails=store.failed_mails())
     invoices = store.invoices()
     if not invoices:

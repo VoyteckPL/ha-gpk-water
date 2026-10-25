@@ -13,6 +13,20 @@ log = logging.getLogger("gpk.mail")
 FAILED_DIR = "/share/gpk_water_failed"
 
 
+def cleanup_failed(store):
+    """Usuwa z folderu nieudanych pliki maili, które już się odczytały (lub nie są fakturami)."""
+    if not os.path.isdir(FAILED_DIR):
+        return
+    failing = {f["uid"] for f in store.failed_mails()}
+    for n in os.listdir(FAILED_DIR):
+        uid = n.split("_", 1)[0]
+        if uid not in failing:
+            try:
+                os.remove(os.path.join(FAILED_DIR, n))
+            except OSError:
+                pass
+
+
 def _save_failed(uid: str, name: str, payload: bytes):
     try:
         os.makedirs(FAILED_DIR, exist_ok=True)
