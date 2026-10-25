@@ -40,7 +40,7 @@ class Store:
         return [json.loads(r[0]) for r in rows]
 
     def mail_seen(self, uid: str) -> bool:
-        return self.db.execute("SELECT 1 FROM seen_mail WHERE uid=?", (uid,)).fetchone() is not None
+        return self.db.execute("SELECT 1 FROM seen_mail WHERE uid=? AND status IN ('ok','no_pdf')", (uid,)).fetchone() is not None
 
     def mark_mail(self, uid: str, status: str, note: str = ""):
         self.db.execute("INSERT OR REPLACE INTO seen_mail(uid,status,note) VALUES (?,?,?)", (uid, status, note))
