@@ -1,0 +1,36 @@
+name: GPK Szemud - faktury za wodę
+version: "0.1.0"
+slug: gpk_water
+description: Pobiera faktury GPK Szemud z Gmaila (IMAP), parsuje PDF-y i wystawia sensory oraz historię kosztów wody w HA.
+arch: [amd64, aarch64, armv7]
+startup: application
+boot: auto
+init: false
+services:
+  - mqtt:want
+options:
+  gmail_user: ""
+  gmail_app_password: ""
+  imap_host: imap.gmail.com
+  sender: faktury@gpkszemud.pl
+  since: "01-Jan-2020"
+  check_hours: 6
+  mqtt_host: core-mosquitto
+  mqtt_port: 1883
+  mqtt_user: ""
+  mqtt_password: ""
+  force_history_import: false
+schema:
+  gmail_user: email
+  gmail_app_password: password
+  imap_host: str
+  sender: str
+  since: str
+  check_hours: int(1,168)
+  mqtt_host: str
+  mqtt_port: port
+  mqtt_user: str?
+  mqtt_password: password?
+  force_history_import: bool
+homeassistant_api: false
+hassio_api: true
