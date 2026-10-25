@@ -6,4 +6,5 @@ RUN apk add --no-cache python3 py3-pip poppler-utils \
 
 WORKDIR /opt/gpk_water
 COPY app ./app
+COPY config.yaml ./config.yaml
 CMD ["python3", "-m", "app.main"]

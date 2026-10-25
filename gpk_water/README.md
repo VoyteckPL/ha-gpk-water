@@ -10,6 +10,10 @@ Czyta maile od `faktury@gpkszemud.pl` z Gmaila (IMAP), parsuje PDF-y (`pdftotext
 3. Opcje add-onu: `gmail_user`, `gmail_app_password`, dane MQTT (dla add-onu Mosquitto zwykle user/hasło z HA).
 4. Start. Przy pierwszym uruchomieniu przejdzie po wszystkich mailach od 2020 r.
 
+## Panel „Woda GPK” (pasek boczny HA)
+Przegląd (KPI, trend, wnioski), Wykresy (koszt wg składników, trend, ceny, zużycie na dobę, koszt 1 m³, roczne, sezonowość; filtry zakresu i dom/ogród),
+Faktury (sortowanie, szukanie, szczegóły, PDF, CSV), Encje HA (prawdziwe entity_id z rejestru HA, karta Lovelace) i Status (synchronizacja, nieodczytane PDF-y).
+
 ## Rozdzielenie dom / ogród
 Pozycja "Woda" o ilości równej zużyciu podlicznika to ogród (bez ścieków); reszta wody to dom. Ścieki = główny - podlicznik.
 

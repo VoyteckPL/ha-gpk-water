@@ -1,5 +1,13 @@
 import json
+import os
+import re
 import sqlite3
+
+PDF_DIR = "/data/pdfs"
+
+
+def pdf_path(number: str) -> str:
+    return os.path.join(PDF_DIR, re.sub(r"[^\w.\-]", "_", number) + ".pdf")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS invoices (
@@ -45,3 +53,16 @@ class Store:
     def mark_mail(self, uid: str, status: str, note: str = ""):
         self.db.execute("INSERT OR REPLACE INTO seen_mail(uid,status,note) VALUES (?,?,?)", (uid, status, note))
         self.db.commit()
+
+    def save_pdf(self, number: str, payload: bytes):
+        os.makedirs(PDF_DIR, exist_ok=True)
+        with open(pdf_path(number), "wb") as f:
+            f.write(payload)
+
+    def failed_mails(self) -> list[dict]:
+        rows = self.db.execute("SELECT uid, note FROM seen_mail WHERE status='failed'").fetchall()
+        return [dict(uid=r[0], note=r[1]) for r in rows]
+
+    def invoices_missing_pdf(self) -> list[tuple[str, str]]:
+        rows = self.db.execute("SELECT number, email_uid FROM invoices WHERE email_uid IS NOT NULL").fetchall()
+        return [(n, u) for n, u in rows if not os.path.exists(pdf_path(n))]

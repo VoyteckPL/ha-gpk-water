@@ -76,6 +76,7 @@ def sync(store, host: str, user: str, password: str, sender: str, since: str, fo
                     continue
                 for w in inv["warnings"]:
                     log.warning("faktura %s: %s", inv["number"], w)
+                store.save_pdf(inv["number"], payload)
                 if store.add_invoice(inv, uid):
                     stats["new"] += 1
                 else:
@@ -83,6 +84,20 @@ def sync(store, host: str, user: str, password: str, sender: str, since: str, fo
                 ok = True
             if ok:
                 store.mark_mail(uid, "ok")
+        # faktury z bazy, których PDF-a jeszcze nie mamy na dysku (import sprzed wersji 0.2)
+        for number, uid in store.invoices_missing_pdf():
+            typ, md = imap.uid("FETCH", uid.encode(), "(RFC822)")
+            if typ != "OK" or not md or not md[0]:
+                continue
+            msg = email.message_from_bytes(md[0][1])
+            for p in msg.walk():
+                if p.get_content_maintype() != "multipart" and (_fname(p).lower().endswith(".pdf") or p.get_content_type() == "application/pdf"):
+                    try:
+                        if parse_invoice_pdf(p.get_payload(decode=True))["number"] == number:
+                            store.save_pdf(number, p.get_payload(decode=True))
+                            stats["pdf_backfilled"] = stats.get("pdf_backfilled", 0) + 1
+                    except Exception:  # noqa: BLE001
+                        pass
     finally:
         try:
             imap.logout()

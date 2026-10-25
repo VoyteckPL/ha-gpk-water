@@ -42,7 +42,7 @@ def publish(host, port, user, password, values: dict, prefix="homeassistant"):
     c.loop_start()
     for key, name, unit, dclass, sclass, icon in SENSORS:
         cfg = {
-            "name": name, "unique_id": f"gpk_water_{key}", "object_id": f"gpk_woda_{key}",
+            "name": name, "unique_id": f"gpk_water_{key}",
             "state_topic": f"gpk_water/{key}", "device": DEV, "icon": icon,
         }
         if unit:
@@ -103,3 +103,40 @@ def import_history(invoices: list[dict]):
         mid += 1
     ws.close()
     log.info("zaimportowano historię: %d faktur, %d serii", len(invoices), len(STAT_SERIES))
+
+
+def _ws():
+    import websocket
+    token = os.environ.get("SUPERVISOR_TOKEN")
+    if not token:
+        return None
+    ws = websocket.create_connection("ws://supervisor/core/websocket", timeout=15)
+    ws.recv()
+    ws.send(json.dumps({"type": "auth", "access_token": token}))
+    if json.loads(ws.recv()).get("type") != "auth_ok":
+        ws.close()
+        return None
+    return ws
+
+
+def fetch_ha_entities() -> dict:
+    """unique_id -> {entity_id, state, unit, last_updated} - prawdziwe encje utworzone w HA."""
+    out = {}
+    try:
+        ws = _ws()
+        if ws is None:
+            return out
+        ws.send(json.dumps({"id": 1, "type": "config/entity_registry/list"}))
+        reg = json.loads(ws.recv()).get("result") or []
+        ws.send(json.dumps({"id": 2, "type": "get_states"}))
+        states = {s["entity_id"]: s for s in (json.loads(ws.recv()).get("result") or [])}
+        ws.close()
+        for e in reg:
+            uid = e.get("unique_id") or ""
+            if e.get("platform") == "mqtt" and uid.startswith("gpk_water_"):
+                st = states.get(e["entity_id"], {})
+                out[uid] = dict(entity_id=e["entity_id"], state=st.get("state"),
+                                last_updated=st.get("last_updated"), disabled=bool(e.get("disabled_by")))
+    except Exception as ex:  # noqa: BLE001
+        log.warning("nie udało się odczytać encji z HA: %s", ex)
+    return out
