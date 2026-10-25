@@ -299,6 +299,7 @@ async function renderMeters(){
   try{[M,C]=await Promise.all([fetch("api/meters").then(r=>r.json()),fetch("api/meters/candidates").then(r=>r.json()).catch(()=>[])])}
   catch(e){el.innerHTML=`<div class="card empty">Nie udało się odczytać liczników.</div>`;return}
   MET=M; fillMetTile();
+  let candErr=null; if(C&&!Array.isArray(C)){candErr=C.error;C=[]}
   const sel=M.settings||{}; const e=M.estimate;
   const dl=C.map(c=>`<option value="${esc(c.entity_id)}">${esc(c.name)} · ${esc(c.state)} ${esc(c.unit)}</option>`).join("");
   const cfg=`<div class="card cc" style="--kc:var(--c-est)"><h2>Wodomierze z Home Assistant</h2>
@@ -308,7 +309,7 @@ async function renderMeters(){
       <div>Licznik ogrodowy</div><div><input list="dlm" id="msub" value="${esc(sel.sub||"")}" placeholder="opcjonalnie, podlicznik" style="width:100%"></div></div>
     <datalist id="dlm">${dl}</datalist>
     <button class="chip on" id="msave">Zapisz i przelicz</button> <span class="hint" id="mmsg" style="margin-left:8px"></span>
-    <p class="hint" style="margin-top:10px">Znaleziono ${C.length} encji wody w HA. „Główny” liczy całą wodę (dom + ogród), „ogrodowy” tylko ogród. Dom = główny − ogród.</p></div>`;
+    <p class="hint" style="margin-top:10px">${candErr?`<span class="up">Nie udało się pobrać listy encji: ${esc(candErr)}</span>`:`Znaleziono ${C.length} encji wody w HA.`} „Główny” liczy całą wodę (dom + ogród), „ogrodowy” tylko ogród. Dom = główny − ogród.</p></div>`;
   let body="";
   if(M.configured&&M.error) body=`<div class="card" style="margin-top:14px;border-left:4px solid var(--bad)"><b>Nie można policzyć szacunku</b><p class="hint">${esc(M.error)}</p></div>`;
   else if(M.configured&&e){

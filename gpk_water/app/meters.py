@@ -42,6 +42,8 @@ def candidates() -> list[dict]:
     """Encje, które mogą być wodomierzami: jednostka m³/L albo device_class water."""
     res = ha_out.ws_batch([{"type": "get_states"}])
     out = []
+    if res is None:
+        return {"error": ha_out.LAST_WS_ERROR or "brak połączenia z HA"}
     for s in (res[0] if res and res[0] else []):
         a = s.get("attributes", {}) or {}
         unit = (a.get("unit_of_measurement") or "")
@@ -74,7 +76,7 @@ def compute(invoices: list[dict], settings: dict, raw: dict | None, today: date 
     if not settings.get("main"):
         return out
     if raw is None:
-        out["error"] = "Brak połączenia z API Home Assistant (token Supervisora)."
+        out["error"] = "Brak połączenia z API Home Assistant: " + (ha_out.LAST_WS_ERROR or "nieznany powód")
         return out
     tz = ZoneInfo(raw["config"].get("time_zone") or "Europe/Warsaw")
     today = today or datetime.now(tz).date()

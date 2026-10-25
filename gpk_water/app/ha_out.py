@@ -88,17 +88,10 @@ STAT_SERIES = [
 
 def import_history(invoices: list[dict]):
     """Każda faktura = jeden punkt w godzinie wystawienia; sum rośnie narastająco."""
-    import websocket  # websocket-client
-
-    token = os.environ.get("SUPERVISOR_TOKEN")
-    if not token:
-        log.info("brak SUPERVISOR_TOKEN - pomijam import statystyk")
+    ws = _ws()
+    if ws is None:
+        log.warning("import statystyk pominięty: %s", LAST_WS_ERROR)
         return
-    ws = websocket.create_connection("ws://supervisor/core/websocket", timeout=30)
-    ws.recv()
-    ws.send(json.dumps({"type": "auth", "access_token": token}))
-    if json.loads(ws.recv()).get("type") != "auth_ok":
-        raise RuntimeError("autoryzacja websocket HA nieudana")
     mid = 1
     for sid, name, unit, fn in STAT_SERIES:
         total, rows = 0.0, []
@@ -120,17 +113,45 @@ def import_history(invoices: list[dict]):
     log.info("zaimportowano historię: %d faktur, %d serii", len(invoices), len(STAT_SERIES))
 
 
+LAST_WS_ERROR = None
+TOKEN_FILES = ("/run/s6/container_environment/SUPERVISOR_TOKEN", "/var/run/s6/container_environment/SUPERVISOR_TOKEN")
+
+
+def _token():
+    for k in ("SUPERVISOR_TOKEN", "HASSIO_TOKEN"):
+        if os.environ.get(k):
+            return os.environ[k]
+    for p in TOKEN_FILES:  # dodatki z s6-overlay: token bywa tylko w pliku
+        try:
+            t = open(p, encoding="utf-8").read().strip()
+            if t:
+                return t
+        except OSError:
+            pass
+    return None
+
+
 def _ws():
+    """Połączenie z websocket HA przez Supervisora; None + LAST_WS_ERROR z powodem, gdy się nie da."""
+    global LAST_WS_ERROR
     import websocket
-    token = os.environ.get("SUPERVISOR_TOKEN")
+    token = _token()
     if not token:
+        LAST_WS_ERROR = "brak tokenu Supervisora w środowisku dodatku (SUPERVISOR_TOKEN)"
         return None
-    ws = websocket.create_connection("ws://supervisor/core/websocket", timeout=15)
-    ws.recv()
-    ws.send(json.dumps({"type": "auth", "access_token": token}))
-    if json.loads(ws.recv()).get("type") != "auth_ok":
+    try:
+        ws = websocket.create_connection("ws://supervisor/core/websocket", timeout=15)
+        ws.recv()
+        ws.send(json.dumps({"type": "auth", "access_token": token}))
+        r = json.loads(ws.recv())
+    except Exception as e:  # noqa: BLE001
+        LAST_WS_ERROR = f"połączenie z ws://supervisor/core/websocket nieudane: {type(e).__name__}: {e}"
+        return None
+    if r.get("type") != "auth_ok":
         ws.close()
+        LAST_WS_ERROR = f"HA odrzuciło autoryzację ({r.get('message') or r.get('type')}); sprawdź, czy dodatek ma uprawnienie homeassistant_api"
         return None
+    LAST_WS_ERROR = None
     return ws
 
 
