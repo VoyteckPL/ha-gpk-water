@@ -11,6 +11,8 @@ from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
+from . import readings, energy
+
 from . import ha_out, meters, state
 from .db import pdf_path
 from .mailbox import FAILED_DIR
@@ -80,6 +82,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, "Licznik główny i ogrodowy muszą być różne".encode(), "text/plain; charset=utf-8")
                 meters.save_settings(main or None, sub or None)
                 return self._json(meters.refresh(self.store, force=True))
+            if path == "api/readings/settings":
+                try:
+                    readings.save_settings(body)
+                except ValueError as e:
+                    return self._send(400, str(e).encode(), "text/plain; charset=utf-8")
+                return self._json(readings.status(self.store))
+            if path == "api/readings/send":
+                return self._json(readings.send_manual(self.store, self.opts, bool(body.get("force"))))
+            if path == "api/energy/rebuild":
+                return self._json(energy.import_all(self.store))
             self._send(404, b"", "text/plain")
         except Exception as e:  # noqa: BLE001
             self._send(500, f"błąd: {e}".encode(), "text/plain; charset=utf-8")
@@ -102,6 +114,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(dict(version=state.version(), now=time.time(), invoices=invs, status=st,
                                    failed_files=sorted(os.listdir(FAILED_DIR)) if os.path.isdir(FAILED_DIR) else [],
                                    sender=self.opts.get("sender"), since=self.opts.get("since")))
+        if path == "api/readings":
+            return self._json(readings.status(self.store))
+        if path == "api/readings/preview":
+            return self._json(readings.preview(self.store))
+        if path == "api/energy":
+            return self._json(energy.LAST)
         if path == "api/meters":
             return self._json(meters.refresh(self.store))
         if path == "api/meters/candidates":

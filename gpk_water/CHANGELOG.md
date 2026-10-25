@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+- Zakładka „Odczyty": automatyczna miesięczna wysyłka stanów liczników do GPK (odporna na restarty i brak sieci, ponawianie, ochrona przed dublem, kontrola błędnych odczytów, powiadomienia).
+- Panel Energia: cztery serie dzienne (zużycie i koszt, dom i ogród) - historia z faktur od 2020, dalej z wodomierzy.
+- Połączony kafelek cen.
+
 ## 0.3.3
 - Zakładka Liczniki: wybór zakresu (7 dni, 30 dni, ten miesiąc, poprzedni, 90 dni, rok, wszystko) i grupowania (dni, tygodnie, miesiące) oraz podsumowanie zakresu.
 

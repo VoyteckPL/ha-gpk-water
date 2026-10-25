@@ -6,7 +6,7 @@ import time
 
 import threading
 
-from . import ha_out, mailbox, meters, metrics, state, web
+from . import energy, ha_out, mailbox, meters, metrics, readings, state, web
 from .db import Store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -40,6 +40,7 @@ def run_once(o: dict, store: Store):
         raise
     if st["new"] or o.get("force_history_import"):
         ha_out.import_history(invoices)
+        energy.import_all(store)
         state.update(history_imported=time.time())
     failed = store.db.execute("SELECT uid, note FROM seen_mail WHERE status='failed'").fetchall()
     if failed:
@@ -59,9 +60,21 @@ def meters_loop(o: dict, store: Store, every=900):
                                    o.get("mqtt_password") or None, vals, sensors=ha_out.SENSORS_EST)
                 elif res.get("error"):
                     log.warning("liczniki: %s", res["error"])
+                if time.time() - state.STATE.get("energy_at", 0) > 21600:
+                    state.update(energy_at=time.time())
+                    energy.import_all(store)
         except Exception:  # noqa: BLE001
             log.exception("pętla liczników")
         time.sleep(every)
+
+
+def readings_loop(o, store):
+    while True:
+        try:
+            readings.tick(store, o)
+        except Exception:  # noqa: BLE001
+            log.exception("pętla odczytów")
+        time.sleep(60)
 
 
 def main():
@@ -69,6 +82,7 @@ def main():
     os.makedirs("/data", exist_ok=True)
     store = Store("/data/invoices.db")
     web.start(store, o)
+    threading.Thread(target=readings_loop, args=(o, store), daemon=True).start()
     threading.Thread(target=meters_loop, args=(o, store), daemon=True).start()
     interval = max(int(o.get("check_hours", 6)), 1) * 3600
     first = True

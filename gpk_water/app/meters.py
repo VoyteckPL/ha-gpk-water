@@ -17,19 +17,31 @@ _lock = threading.Lock()
 _cache = {"t": 0, "key": None, "data": None}
 
 
-def load_settings() -> dict:
+def _read_all() -> dict:
     try:
         with open(SETTINGS, encoding="utf-8") as f:
-            d = json.load(f)
-        return {"main": d.get("main") or None, "sub": d.get("sub") or None}
+            return json.load(f)
     except (OSError, ValueError):
-        return {"main": None, "sub": None}
+        return {}
+
+
+def _write_all(d: dict):
+    os.makedirs(DATA, exist_ok=True)
+    tmp = SETTINGS + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:  # zapis atomowy - restart w trakcie nie uszkodzi pliku
+        json.dump(d, f, ensure_ascii=False)
+    os.replace(tmp, SETTINGS)
+
+
+def load_settings() -> dict:
+    d = _read_all()
+    return {"main": d.get("main") or None, "sub": d.get("sub") or None}
 
 
 def save_settings(main: str | None, sub: str | None):
-    os.makedirs(DATA, exist_ok=True)
-    with open(SETTINGS, "w", encoding="utf-8") as f:
-        json.dump({"main": main or None, "sub": sub or None}, f)
+    d = _read_all()
+    d.update(main=main or None, sub=sub or None)
+    _write_all(d)
     _cache.update(t=0)
 
 
@@ -56,6 +68,23 @@ def candidates() -> list[dict]:
     return out
 
 
+TZ_NAME = None
+
+
+def daily_maps(raw: dict, settings: dict):
+    tz = ZoneInfo(raw["config"].get("time_zone") or "Europe/Warsaw")
+    units = {m.get("statistic_id"): m.get("statistic_unit_of_measurement") or m.get("display_unit_of_measurement") for m in raw["meta"]}
+
+    def daily(eid):
+        d = {}
+        unit = units.get(eid) or (raw["states"].get(eid, {}).get("attributes", {}) or {}).get("unit_of_measurement")
+        for row in raw["stats"].get(eid) or []:
+            ts = row["start"] / 1000 if row["start"] > 1e11 else row["start"]
+            d[datetime.fromtimestamp(ts, tz).date()] = _m3(row.get("change"), unit)
+        return d
+    return daily(settings["main"]), (daily(settings["sub"]) if settings.get("sub") else {})
+
+
 def _fetch(main: str, sub: str | None):
     ids = [main] + ([sub] if sub else [])
     since = "2019-01-01T00:00:00+00:00"
@@ -68,6 +97,8 @@ def _fetch(main: str, sub: str | None):
     ])
     if not res:
         return None
+    global TZ_NAME
+    TZ_NAME = (res[0] or {}).get("time_zone") or TZ_NAME
     return dict(config=res[0] or {}, meta=res[1] or [], stats=res[2] or {}, states={s["entity_id"]: s for s in (res[3] or [])})
 
 

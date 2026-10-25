@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS invoices (
   email_uid TEXT,
   imported_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  month TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL,
+  created TEXT, sent_at TEXT, main TEXT, sub TEXT, to_addr TEXT,
+  error TEXT, attempts INTEGER DEFAULT 0, last_try REAL, notified INTEGER DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS seen_mail (
   uid TEXT PRIMARY KEY,
   status TEXT,
@@ -66,3 +72,27 @@ class Store:
     def invoices_missing_pdf(self) -> list[tuple[str, str]]:
         rows = self.db.execute("SELECT number, email_uid FROM invoices WHERE email_uid IS NOT NULL").fetchall()
         return [(n, u) for n, u in rows if not os.path.exists(pdf_path(n))]
+
+    # --- wysyłki odczytów do GPK
+    def submissions(self, month: str | None = None) -> list[dict]:
+        q = "SELECT id,month,kind,status,created,sent_at,main,sub,to_addr,error,attempts,last_try,notified FROM submissions"
+        args: tuple = ()
+        if month:
+            q += " WHERE month=?"
+            args = (month,)
+        cols = ["id", "month", "kind", "status", "created", "sent_at", "main", "sub", "to_addr", "error", "attempts", "last_try", "notified"]
+        return [dict(zip(cols, r)) for r in self.db.execute(q + " ORDER BY id DESC", args).fetchall()]
+
+    def add_submission(self, month, kind, status, created, **kw) -> int:
+        cur = self.db.execute("INSERT INTO submissions(month,kind,status,created) VALUES (?,?,?,?)", (month, kind, status, created))
+        self.db.commit()
+        if kw:
+            self.update_submission(cur.lastrowid, **kw)
+        return cur.lastrowid
+
+    def update_submission(self, sid: int, **kw):
+        allowed = {"status", "sent_at", "main", "sub", "to_addr", "error", "attempts", "last_try", "notified"}
+        kw = {k: v for k, v in kw.items() if k in allowed}
+        if kw:
+            self.db.execute(f"UPDATE submissions SET {', '.join(k + '=?' for k in kw)} WHERE id=?", (*kw.values(), sid))
+            self.db.commit()

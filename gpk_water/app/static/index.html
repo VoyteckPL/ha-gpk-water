@@ -43,6 +43,15 @@ main{max-width:1180px;margin:0 auto;padding:16px}
 .kpi .lbl{color:var(--mute);font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:6px}
 .kpi .ic{width:28px;height:28px;border-radius:9px;background:color-mix(in srgb,var(--kc) 18%,transparent);display:grid;place-items:center;font-size:15px;flex:none}
 .card.cc{border-top:4px solid var(--kc)}
+.kpi.multi{grid-column:span 2}
+.kpi.multi .rows{display:grid;gap:0;margin-top:4px}
+.kpi.multi .r{display:flex;align-items:baseline;gap:8px;padding:7px 0;border-top:1px solid var(--line)}
+.kpi.multi .r:first-child{border-top:0}
+.kpi.multi .r .n{flex:1;color:var(--mute);font-size:13px;display:flex;align-items:center;gap:7px}
+.kpi.multi .r .n i{width:9px;height:9px;border-radius:3px;flex:none}
+.kpi.multi .r b{font-size:21px;letter-spacing:-.3px}
+.kpi.multi .r small{color:var(--mute);font-size:12px;min-width:78px;text-align:right}
+@media(max-width:420px){.kpi.multi{grid-column:1/-1}}
 .flash{animation:fl 1.2s ease}@keyframes fl{0%,60%{box-shadow:0 0 0 3px var(--accent2)}100%{box-shadow:var(--shadow)}}
 .kpi .val{font-size:25px;font-weight:700;margin:4px 0 2px;letter-spacing:-.3px;color:var(--kc)}
 .kpi .val small{font-size:13px;font-weight:550;color:var(--mute);margin-left:3px}
@@ -99,6 +108,7 @@ pre{background:var(--chip);border-radius:12px;padding:12px;overflow:auto;font-si
   <nav id="nav">
     <button data-t="over" class="on">Przegląd</button>
     <button data-t="met">Liczniki</button>
+    <button data-t="rd">Odczyty</button>
     <button data-t="inv">Faktury</button>
     <button data-t="ent">Encje HA</button>
     <button data-t="stat">Status</button>
@@ -107,6 +117,7 @@ pre{background:var(--chip);border-radius:12px;padding:12px;overflow:auto;font-si
 <main>
 <section id="t-over"></section>
 <section id="t-met" class="hide"></section>
+<section id="t-rd" class="hide"></section>
 <section id="t-inv" class="hide"></section>
 <section id="t-ent" class="hide"></section>
 <section id="t-stat" class="hide"></section>
@@ -237,9 +248,13 @@ function renderOverview(){
   <div class="grid kpis">
     <div id="met-slot" style="display:contents"></div>
     ${kpi("Ostatnia faktura",nf(L.invoice_gross),"zł",`${fmtD(L.issue_date)} · ${nf(L.water_home_m3,0)}+${nf(L.water_garden_m3,0)} m³`,"--c-total","🧾","last")}
-    ${kpi("Cena wody",nf(L.wp,2),"zł/m³",arrow(pct(L.wp,P?P.wp:null))+" vs poprzednia","--c-home","💧","prices")}
-    ${kpi("Cena ścieków",nf(L.sp,2),"zł/m³",arrow(pct(L.sp,P?P.sp:null))+" vs poprzednia","--c-sewage","🚰","prices")}
-    ${kpi("Realny koszt 1 m³ (dom)",nf(L.perM3,2),"zł/m³","z abonamentem i ściekami","--c-cost","💰","perm3")}
+    <div class="card kpi multi" style="--kc:var(--c-home)" data-act="prices" role="button" tabindex="0" title="Kliknij, aby zobaczyć wykres cen">
+      <div class="lbl"><span>Ceny wody (brutto)</span><span class="ic">💧</span></div>
+      <div class="rows">
+        <div class="r"><span class="n"><i style="background:var(--c-home)"></i>Woda</span><b style="color:var(--c-home)">${nf(L.wp,2)}</b><small>zł/m³ ${arrow(pct(L.wp,P?P.wp:null))}</small></div>
+        <div class="r"><span class="n"><i style="background:var(--c-sewage)"></i>Ścieki</span><b style="color:var(--c-sewage)">${nf(L.sp,2)}</b><small>zł/m³ ${arrow(pct(L.sp,P?P.sp:null))}</small></div>
+        <div class="r" data-act="perm3" title="Faktury wg kosztu 1 m³"><span class="n"><i style="background:var(--c-cost)"></i>Realny koszt 1 m³ (dom)</span><b style="color:var(--c-cost)">${nf(L.perM3,2)}</b><small>zł/m³</small></div>
+      </div></div>
     ${kpi("Średnio miesięcznie",nf(a12,0),"zł",ap?arrow(pct(a12,ap))+" vs rok wcześniej":"ostatnie 12 mies.","--c-avg","📅","cost")}
     ${kpi("Zużycie roczne (dom)",nf(yr,0),"m³","≈ "+nf(yr*1000/365,0)+" l/dobę","--c-garden","🌿","usage")}
   </div>
@@ -268,13 +283,13 @@ function renderOverview(){
   $("#fnorm").onclick=()=>{F.norm=!F.norm;sync();drawCharts()};
   sync(); drawCharts();
   const go=id=>{const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash")};
-  $("#t-over").querySelectorAll(".kpi").forEach(k=>{const run=()=>{const a=k.dataset.act;
+  $("#t-over").querySelectorAll(".kpi").forEach(k=>{const run=(ev)=>{const a=(ev&&ev.target&&ev.target.closest&&ev.target.closest(".r[data-act]")||k).dataset.act;
       if(a==="last")openInvoice(L.number);
       else if(a==="prices")go("k-prices");
       else if(a==="usage")go("k-usage");
       else if(a==="cost"){F.norm=true;sync();drawCharts();go("k-cost")}
       else if(a==="perm3"){SORT={k:"perM3",asc:false};YF="all";Q="";renderInv();show("inv")}};
-    k.onclick=run;k.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();run()}}});
+    k.onclick=run;k.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();run(e)}}});
   $("#k-years").onclick=e=>{const tr=e.target.closest("tr.yr");if(!tr)return;YF=tr.dataset.y;Q="";SORT={k:"t",asc:false};renderInv();show("inv")};
 }
 function openInvoice(num){
@@ -473,13 +488,52 @@ function renderAll(){
   renderOverview(); renderInv(); renderStatus(); loadMeters();
   show(cur,true);
 }
+
+const ST_PL={sent:"wysłano",failed:"błąd, ponawiam",pending:"w toku",missed:"nie wysłano"};
+async function renderReadings(){
+  const el=$("#t-rd"); let R;
+  try{R=await (await fetch("api/readings")).json()}catch(e){el.innerHTML='<div class="card">Brak połączenia z dodatkiem</div>';return}
+  const s=R.settings;
+  const hist=R.history.map(h=>`<tr><td>${esc(h.month)}</td><td>${h.kind==="auto"?"auto":"ręcznie"}</td><td>${esc(ST_PL[h.status]||h.status)}</td><td>${esc(h.main||"–")} / ${esc(h.sub||"–")}</td><td>${esc((h.sent_at||h.created||"").replace("T"," ").slice(0,16))}</td><td>${esc(h.error||"")}</td></tr>`).join("");
+  el.innerHTML=`<div class="card"><h2>Automatyczna wysyłka stanów liczników</h2>
+  <p class="hint">${s.enabled?(R.sent_this_month?"Za "+R.month+" już wysłano. ":"")+"Następny termin: "+esc(R.next_due.replace("T"," ")):"Wyłączona - możesz zostawić swoją automatyzację, dopóki tego nie włączysz."}</p>
+  <div class="grid2" style="display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center">
+  <div>Włączona</div><div><input type="checkbox" id="r_en" ${s.enabled?"checked":""}></div>
+  <div>Dzień miesiąca</div><div><input type="number" id="r_day" min="1" max="28" value="${s.day}" style="width:80px"></div>
+  <div>Godzina</div><div><input type="time" id="r_time" value="${esc(s.time)}"></div>
+  <div>Ponawiaj przez (dni)</div><div><input type="number" id="r_win" min="1" max="20" value="${s.window_days}" style="width:80px"></div>
+  <div>Do</div><div><input id="r_to" value="${esc(s.to)}" style="width:100%"></div>
+  <div>Kopia do mnie</div><div><input type="checkbox" id="r_cc" ${s.cc_self?"checked":""}></div>
+  <div>Temat maila</div><div><input id="r_sub" value="${esc(s.subject)}" style="width:100%" placeholder="np. Stany liczników + adres"></div>
+  <div>Początek treści</div><div><input id="r_intro" value="${esc(s.intro)}" style="width:100%"></div>
+  <div>Powiadomienie na telefon</div><div><input id="r_ns" value="${esc(s.notify_service)}" placeholder="notify.mobile_app_..." style="width:100%"></div>
+  <div>Blokuj błędne odczyty</div><div><input type="checkbox" id="r_san" ${s.sanity?"checked":""}></div></div>
+  <p style="margin-top:12px"><button class="chip" id="r_save">Zapisz</button> <button class="chip" id="r_prev">Podgląd</button> <button class="chip" id="r_send">Wyślij teraz</button></p>
+  <pre id="r_out" class="hint" style="white-space:pre-wrap"></pre></div>
+  <div class="card" style="margin-top:12px"><h2>Historia wysyłek</h2><div style="overflow:auto"><table ><tr><th>Miesiąc</th><th>Tryb</th><th>Status</th><th>Główny / ogród</th><th>Kiedy</th><th>Uwagi</th></tr>${hist||'<tr><td colspan=6>Brak</td></tr>'}</table></div></div>`;
+  const out=t=>$("#r_out").textContent=t;
+  $("#r_save").onclick=async()=>{
+    const b={enabled:$("#r_en").checked,day:+$("#r_day").value,time:$("#r_time").value,window_days:+$("#r_win").value,to:$("#r_to").value,cc_self:$("#r_cc").checked,subject:$("#r_sub").value,intro:$("#r_intro").value,notify_service:$("#r_ns").value,sanity:$("#r_san").checked};
+    const r=await fetch("api/readings/settings",{method:"POST",body:JSON.stringify(b)});
+    if(!r.ok){out(await r.text());return} renderReadings()};
+  $("#r_prev").onclick=async()=>{const p=await (await fetch("api/readings/preview")).json();
+    out(p.ok?`Do: ${p.to.join(", ")}\nTemat: ${p.subject}\n\n${p.body}${p.warning?"\nUWAGA: "+p.warning:""}`:"Nie można odczytać liczników: "+p.error)};
+  $("#r_send").onclick=async()=>{
+    if(!confirm("Wysłać stany liczników do GPK teraz?"))return;
+    out("Wysyłam…");
+    let r=await (await fetch("api/readings/send",{method:"POST",body:"{}"})).json();
+    if(r.result!=="sent"&&r.record.error&&/mniejszy/.test(r.record.error)&&confirm(r.record.error+"\nWysłać mimo to?"))
+      r=await (await fetch("api/readings/send",{method:"POST",body:JSON.stringify({force:true})})).json();
+    out(r.result==="sent"?"Wysłano.":"Błąd: "+(r.record.error||"")); setTimeout(renderReadings,2500)};
+}
 let cur="over";
 function show(t,keep){
   cur=t; document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["over","met","inv","ent","stat"].forEach(x=>$("#t-"+x).classList.toggle("hide",x!==t));
+  ["over","met","rd","inv","ent","stat"].forEach(x=>$("#t-"+x).classList.toggle("hide",x!==t));
   if(t==="over") requestAnimationFrame(drawCharts);
   if(t==="ent"&&!keep) renderEnt();
   if(t==="met"&&!keep) renderMeters();
+  if(t==="rd"&&!keep) renderReadings();
 }
 $("#nav").onclick=e=>{const t=e.target.dataset.t;if(t)show(t)};
 async function load(){
