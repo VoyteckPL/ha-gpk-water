@@ -6,7 +6,7 @@ import os
 import re
 from email.header import decode_header
 
-from .parser import ParseError, parse_invoice_pdf
+from .parser import NotWaterInvoice, ParseError, parse_invoice_pdf
 
 log = logging.getLogger("gpk.mail")
 
@@ -64,6 +64,10 @@ def sync(store, host: str, user: str, password: str, sender: str, since: str, fo
                 payload = part.get_payload(decode=True)
                 try:
                     inv = parse_invoice_pdf(payload)
+                except NotWaterInvoice as e:
+                    log.info("mail %s (%s): pomijam - %s", uid, _fname(part), e)
+                    store.mark_mail(uid, "not_invoice", _fname(part))
+                    continue
                 except (ParseError, Exception) as e:  # noqa: BLE001
                     log.warning("mail %s (%s): nie sparsowano: %s", uid, _fname(part), e)
                     store.mark_mail(uid, "failed", f"{_fname(part)}: {e}")

@@ -21,7 +21,13 @@ ITEM_RE = re.compile(
     rf"(?P<vat>\d+)%\s+(?P<vatv>{NUM})\s+(?P<gross>{NUM})\s*$",
     re.M,
 )
-METER_RE = re.compile(
+SPACED_DATE = r"(?:\d{2}\.\d(?: ?\d)\.\d{4}|\d{4}-\d(?: ?\d)-\d(?: ?\d))"
+METER_ROW = re.compile(
+    rf"^\s*(?P<type>Główny|Podlicznik)\s+(?P<serial>\S+)\s+(?P<d0>{SPACED_DATE})\s+(?P<mid>[\d ,]+?)\s+"
+    rf"(?P<d1>{SPACED_DATE})\s+(?P<tail>[\d ,]+?)(?:\s*\([^)]*\))?\s*$",
+    re.M,
+)
+_OLD_METER_RE = re.compile(
     rf"^\s*(?P<type>Główny|Podlicznik)\s+(?P<serial>\S+)\s+(?P<d0>{DATE})\s+(?P<r0>\d+(?:,\d+)?)\s+"
     rf"(?P<d1>{DATE})\s+(?P<r1>\d+(?:,\d+)?)(?:\s*\([^)]*\))?\s+(?P<use>\d+(?:,\d+)?)\s*$",
     re.M,
@@ -31,6 +37,10 @@ TOTALS_RE = re.compile(rf"^\s+(?P<net>{NUM})\s+(?P<vat>{NUM})\s+(?P<gross>{NUM})
 
 class ParseError(Exception):
     pass
+
+
+class NotWaterInvoice(ParseError):
+    """Dokument bez wzorca faktury za wodę (np. zlecenie usługi, faktura za usługę)."""
 
 
 def _money(s: str) -> Decimal:
@@ -43,6 +53,24 @@ def _qty(s: str) -> Decimal:
 
 def _iso(s: str) -> str:
     return datetime.strptime(s, "%d.%m.%Y" if "." in s else "%Y-%m-%d").date().isoformat()
+
+
+def _meter(m) -> dict:
+    """Wiersz licznika; PDF potrafi wstawić spację w środku liczby ('1 19', '1 1 12', '2022-1 1-02')."""
+    r0 = _qty(m["mid"].replace(" ", ""))
+    toks = m["tail"].split()
+    if len(toks) < 2:
+        raise ParseError("wiersz licznika: brak odczytu lub zużycia")
+    pick = None
+    for k in range(1, len(toks)):  # ostatnie k tokenów = zużycie, reszta = odczyt bieżący
+        r1, use = _qty("".join(toks[:-k])), _qty("".join(toks[-k:]))
+        if r1 - r0 == use:
+            pick = (r1, use)
+            break
+    if pick is None:  # nie zgadza się arytmetyka - bierzemy ostatni token jako zużycie
+        pick = (_qty("".join(toks[:-1])), _qty(toks[-1]))
+    return dict(type=m["type"], serial=m["serial"], d0=m["d0"].replace(" ", ""), r0=r0,
+                d1=m["d1"].replace(" ", ""), r1=pick[0], use=pick[1])
 
 
 def _req(pattern: str, text: str, label: str, flags: int = 0) -> str:
@@ -76,6 +104,8 @@ def _f(x: Decimal | None, nd: int = 2) -> float | None:
 
 
 def parse_invoice_text(text: str) -> dict:
+    if not re.search(r"Faktura Nr\s+\d+/\d{4}", text) or "Odczyt poprzedni" not in text:
+        raise NotWaterInvoice("to nie jest faktura za wodę z odczytami liczników")
     number = _req(r"Faktura Nr\s+(\S+)", text, "numer faktury")
     issue = _iso(_req(rf"Data wystawienia\s+({DATE})", text, "data wystawienia"))
     sale = _iso(_req(rf"Data sprzeda[żz]y\s+({DATE})", text, "data sprzedaży"))
@@ -83,8 +113,9 @@ def parse_invoice_text(text: str) -> dict:
     customer = _req(r"Nabywca\s+(\d+)", text, "numer odbiorcy")
 
     meters = {}
-    for m in METER_RE.finditer(text):
-        meters["main" if m["type"] == "Główny" else "sub"] = m
+    meter_text = re.sub(r"(?m)^(\s*(?:Główny|Podlicznik)\b[^\n]*?)\s*\([^)\n]*\)", r"\1", text)
+    for m in METER_ROW.finditer(meter_text):
+        meters["main" if m["type"] == "Główny" else "sub"] = _meter(m)
     if "main" not in meters:
         raise ParseError("nie znaleziono wiersza licznika głównego")
 
@@ -120,8 +151,8 @@ def parse_invoice_text(text: str) -> dict:
     period_start, period_end = min(starts), max(ends)
     period_days = (date.fromisoformat(period_end) - date.fromisoformat(period_start)).days
 
-    main_use = _qty(main["use"])
-    sub_use = _qty(sub["use"]) if sub else Decimal(0)
+    main_use = main["use"]
+    sub_use = sub["use"] if sub else Decimal(0)
 
     # woda: pozycja o ilości = zużycie podlicznika to ogród, reszta dom
     water = [i for i in items if i["kind"] == "water"]
@@ -147,7 +178,7 @@ def parse_invoice_text(text: str) -> dict:
         warnings.append("suma pozycji brutto różni się od sumy na fakturze")
     if cur and invoice_gross != gross_total:
         warnings.append("'Bieżąca faktura' różni się od sumy brutto")
-    if _qty(main["r1"]) - _qty(main["r0"]) != main_use:
+    if main["r1"] - main["r0"] != main_use:
         warnings.append("zużycie licznika głównego nie zgadza się z odczytami")
     if s(sewage, "qty") != main_use - sub_use:
         warnings.append("ilość ścieków różni się od głównego minus podlicznik")
@@ -157,8 +188,8 @@ def parse_invoice_text(text: str) -> dict:
         number=number, customer_id=customer, issue_date=issue, sale_date=sale, due_date=due,
         period_start=period_start, period_end=period_end, period_days=period_days,
         main_serial=main["serial"], sub_serial=sub["serial"] if sub else None,
-        main_prev=_f(_qty(main["r0"]), 3), main_cur=_f(_qty(main["r1"]), 3), main_usage=_f(main_use, 3),
-        sub_prev=_f(_qty(sub["r0"]), 3) if sub else None, sub_cur=_f(_qty(sub["r1"]), 3) if sub else None,
+        main_prev=_f(main["r0"], 3), main_cur=_f(main["r1"], 3), main_usage=_f(main_use, 3),
+        sub_prev=_f(sub["r0"], 3) if sub else None, sub_cur=_f(sub["r1"], 3) if sub else None,
         sub_usage=_f(sub_use, 3),
         water_home_m3=_f(s(home, "qty"), 3), water_garden_m3=_f(s(garden, "qty"), 3),
         sewage_m3=_f(s(sewage, "qty"), 3),
