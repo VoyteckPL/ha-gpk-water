@@ -8,38 +8,43 @@
 :root{
   --bg:#f3f5fa;--card:#fff;--ink:#1b2233;--mute:#6a7488;--line:#e3e8f1;--accent:#2b3990;--accent2:#4aa3df;
   --good:#2e9d57;--bad:#d64545;--warn:#d98e1a;--chip:#eef2fb;--shadow:0 1px 2px rgba(20,30,60,.06),0 4px 16px rgba(20,30,60,.05);
-  --c-home:#3b82c4;--c-garden:#4caf50;--c-sewage:#e0a030;--c-abo:#8b95a7;--c-other:#d9534f;--c-total:#2b3990;--c-trend:#d64545;
+  --c-home:#3b82c4;--c-garden:#4caf50;--c-sewage:#e0a030;--c-abo:#8b95a7;--c-other:#d9534f;--c-total:#2b3990;--c-trend:#d64545;--c-cost:#8e6bbf;--c-avg:#12a0a0;
 }
 @media(prefers-color-scheme:dark){:root{
   --bg:#0e1320;--card:#161d2e;--ink:#e8edf7;--mute:#93a0b8;--line:#25304a;--accent:#7f93ee;--accent2:#5db3ec;
   --chip:#1e2840;--shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);--c-total:#8fa2f5;
-  --c-home:#58a6e6;--c-garden:#66c06a;--c-sewage:#efb54a;--c-abo:#9aa6bb;--c-other:#ee6b67;--c-trend:#ff7d78;}}
+  --c-home:#58a6e6;--c-garden:#66c06a;--c-sewage:#efb54a;--c-abo:#9aa6bb;--c-other:#ee6b67;--c-trend:#ff7d78;--c-cost:#b394e0;--c-avg:#3ccaca;}}
 *{box-sizing:border-box}
 html,body{margin:0}
 body{background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
-header{background:linear-gradient(135deg,#1c2766,#2b3990 55%,#3f6fc0);color:#fff;padding:14px 16px 0}
+header{background:linear-gradient(135deg,#1c2766,#2b3990 55%,#3f6fc0);color:#fff;padding:8px 16px 0}
 .hwrap{max-width:1180px;margin:0 auto}
 .top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.logo{background:#fff;border-radius:12px;padding:6px 10px;display:flex}
-.logo img{height:38px;display:block}
+.logo{background:#fff;border-radius:9px;padding:4px 8px;display:flex}
+.logo img{height:26px;display:block}
 .ttl{flex:1;min-width:150px}
-.ttl h1{margin:0;font-size:19px;font-weight:650;letter-spacing:.2px}
-.ttl small{opacity:.8}
-.pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.16);border-radius:999px;padding:5px 11px;font-size:12.5px;white-space:nowrap}
+.ttl h1{margin:0;font-size:15.5px;font-weight:650;letter-spacing:.2px;line-height:1.2}
+.ttl small{opacity:.78;font-size:11.5px}
+.pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.16);border-radius:999px;padding:4px 10px;font-size:12px;white-space:nowrap}
 .dot{width:9px;height:9px;border-radius:50%;background:#9aa;display:inline-block}
 .dot.ok{background:#4be07a}.dot.err{background:#ff6b6b}.dot.wait{background:#ffd166}
 button,.btn{font:inherit;cursor:pointer}
-.iconbtn{background:rgba(255,255,255,.16);border:0;color:#fff;border-radius:10px;padding:7px 11px}
-nav{display:flex;gap:2px;overflow-x:auto;margin-top:12px;scrollbar-width:none}
+.iconbtn{background:rgba(255,255,255,.16);border:0;color:#fff;border-radius:9px;padding:5px 10px}
+nav{display:flex;gap:2px;overflow-x:auto;margin-top:6px;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
-nav button{background:none;border:0;color:rgba(255,255,255,.78);padding:11px 15px;border-bottom:3px solid transparent;white-space:nowrap;font-weight:550}
+nav button{background:none;border:0;color:rgba(255,255,255,.78);padding:8px 14px;font-size:14px;border-bottom:3px solid transparent;white-space:nowrap;font-weight:550}
 nav button.on{color:#fff;border-color:#fff}
 main{max-width:1180px;margin:0 auto;padding:16px}
 .grid{display:grid;gap:14px}
 .kpis{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
 .card{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:15px 16px;position:relative}
-.kpi .lbl{color:var(--mute);font-size:12.5px;display:flex;justify-content:space-between;gap:6px}
-.kpi .val{font-size:25px;font-weight:700;margin:4px 0 2px;letter-spacing:-.3px}
+.kpi{--kc:var(--accent);border-top:4px solid var(--kc);cursor:pointer;transition:transform .12s,box-shadow .12s;background:linear-gradient(180deg,color-mix(in srgb,var(--kc) 9%,var(--card)),var(--card) 70%)}
+.kpi:hover{transform:translateY(-2px)}.kpi:active{transform:none}
+.kpi .lbl{color:var(--mute);font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.kpi .ic{width:28px;height:28px;border-radius:9px;background:color-mix(in srgb,var(--kc) 18%,transparent);display:grid;place-items:center;font-size:15px;flex:none}
+.card.cc{border-top:4px solid var(--kc)}
+.flash{animation:fl 1.2s ease}@keyframes fl{0%,60%{box-shadow:0 0 0 3px var(--accent2)}100%{box-shadow:var(--shadow)}}
+.kpi .val{font-size:25px;font-weight:700;margin:4px 0 2px;letter-spacing:-.3px;color:var(--kc)}
 .kpi .val small{font-size:13px;font-weight:550;color:var(--mute);margin-left:3px}
 .kpi .sub{font-size:12.5px;color:var(--mute)}
 .up{color:var(--bad)}.down{color:var(--good)}
@@ -188,6 +193,7 @@ function drawCharts(){
     const dsets=parts.filter(p=>p[3]&&R.some(i=>i[p[1]]>0)).map(p=>({label:p[0],data:R.map(i=>+(i[p[1]]*f(i)).toFixed(2)),backgroundColor:css(p[2]),stack:"s",borderRadius:2}));
     const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y(F.norm?"zł / 30 dni":"zł / faktura")};
     o.plugins.tooltip.callbacks={footer:items=>"Razem: "+zl(items.reduce((s,x)=>s+x.parsed.y,0)),title:items=>fmtD(R[items[0].dataIndex].issue_date)};
+    o.onClick=(e,els)=>{if(els.length)openInvoice(R[els[0].index].number)}; o.onHover=(e,els)=>{e.native.target.style.cursor=els.length?"pointer":"default"};
     mk("c1",{type:"bar",data:{labels:R.map(i=>monthShort(i.t)),datasets:dsets},options:o});
   }
   drawPrices(R,"c3");
@@ -199,6 +205,7 @@ function drawCharts(){
     const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y("m³ / faktura","m3")};
     o.plugins.tooltip.callbacks={title:items=>{const i=R[items[0].dataIndex];return fmtD(i.issue_date)+" ("+i.days+" dni)"},
       footer:items=>{const i=R[items[0].dataIndex];return nf((i.water_home_m3+i.water_garden_m3)/i.days*1000,0)+" l/dobę"}};
+    o.onClick=(e,els)=>{if(els.length)openInvoice(R[els[0].index].number)}; o.onHover=(e,els)=>{e.native.target.style.cursor=els.length?"pointer":"default"};
     mk("c4",{type:"bar",data:{labels:R.map(i=>monthShort(i.t)),datasets:sets},options:o});
   }
 }
@@ -214,7 +221,7 @@ function drawPrices(R,id){
 }
 
 // ---------- widoki ----------
-function kpi(lbl,val,unit,sub){return `<div class="card kpi"><div class="lbl">${lbl}</div><div class="val">${val}<small>${unit||""}</small></div><div class="sub">${sub||"&nbsp;"}</div></div>`}
+function kpi(lbl,val,unit,sub,color,icon,act){return `<div class="card kpi" style="--kc:var(${color})" data-act="${act}" role="button" tabindex="0" title="Kliknij, aby zobaczyć szczegóły"><div class="lbl"><span>${lbl}</span><span class="ic">${icon}</span></div><div class="val">${val}<small>${unit||""}</small></div><div class="sub">${sub||"&nbsp;"}</div></div>`}
 function renderOverview(){
   const L=INV[INV.length-1], P=INV[INV.length-2];
   const last12=INV.filter(i=>i.t>=L.t-366*864e5&&i.okDays), prev12=INV.filter(i=>i.t<L.t-366*864e5&&i.t>=L.t-732*864e5&&i.okDays);
@@ -223,15 +230,15 @@ function renderOverview(){
   const yr=last12.reduce((s,i)=>s+i.water_home_m3,0)/Math.max(last12.reduce((s,i)=>s+i.days,0),1)*365;
   const years=[...new Set(INV.map(i=>i.year))].sort((a,b)=>b-a);
   const yrows=years.map(y=>{const r=INV.filter(i=>i.year===y),g=r.reduce((s,i)=>s+i.invoice_gross,0),m=r.reduce((s,i)=>s+i.m3,0);
-    return `<tr><td>${y}</td><td>${r.length}</td><td>${nf(r.reduce((s,i)=>s+i.water_home_m3,0),0)}</td><td>${nf(r.reduce((s,i)=>s+i.water_garden_m3,0),0)}</td><td><b>${nf(g)}</b></td><td>${nf(m?g/m:null)}</td></tr>`}).join("");
+    return `<tr class="yr" data-y="${y}" style="cursor:pointer"><td>${y}</td><td>${r.length}</td><td>${nf(r.reduce((s,i)=>s+i.water_home_m3,0),0)}</td><td>${nf(r.reduce((s,i)=>s+i.water_garden_m3,0),0)}</td><td><b>${nf(g)}</b></td><td>${nf(m?g/m:null)}</td></tr>`}).join("");
   $("#t-over").innerHTML=`
   <div class="grid kpis">
-    ${kpi("Ostatnia faktura",nf(L.invoice_gross),"zł",`${fmtD(L.issue_date)} · ${nf(L.water_home_m3,0)}+${nf(L.water_garden_m3,0)} m³`)}
-    ${kpi("Cena wody",nf(L.wp,2),"zł/m³",arrow(pct(L.wp,P?P.wp:null))+" vs poprzednia")}
-    ${kpi("Cena ścieków",nf(L.sp,2),"zł/m³",arrow(pct(L.sp,P?P.sp:null))+" vs poprzednia")}
-    ${kpi("Realny koszt 1 m³ (dom)",nf(L.perM3,2),"zł/m³","z abonamentem i ściekami")}
-    ${kpi("Średnio miesięcznie",nf(a12,0),"zł",ap?arrow(pct(a12,ap))+" vs rok wcześniej":"ostatnie 12 mies.")}
-    ${kpi("Zużycie roczne (dom)",nf(yr,0),"m³","≈ "+nf(yr*1000/365,0)+" l/dobę")}
+    ${kpi("Ostatnia faktura",nf(L.invoice_gross),"zł",`${fmtD(L.issue_date)} · ${nf(L.water_home_m3,0)}+${nf(L.water_garden_m3,0)} m³`,"--c-total","🧾","last")}
+    ${kpi("Cena wody",nf(L.wp,2),"zł/m³",arrow(pct(L.wp,P?P.wp:null))+" vs poprzednia","--c-home","💧","prices")}
+    ${kpi("Cena ścieków",nf(L.sp,2),"zł/m³",arrow(pct(L.sp,P?P.sp:null))+" vs poprzednia","--c-sewage","🚰","prices")}
+    ${kpi("Realny koszt 1 m³ (dom)",nf(L.perM3,2),"zł/m³","z abonamentem i ściekami","--c-cost","💰","perm3")}
+    ${kpi("Średnio miesięcznie",nf(a12,0),"zł",ap?arrow(pct(a12,ap))+" vs rok wcześniej":"ostatnie 12 mies.","--c-avg","📅","cost")}
+    ${kpi("Zużycie roczne (dom)",nf(yr,0),"m³","≈ "+nf(yr*1000/365,0)+" l/dobę","--c-garden","🌿","usage")}
   </div>
   <div class="filters" style="margin-top:14px">
     <div class="seg" id="frange"><button data-r="all">Wszystko</button><button data-r="12">12 mies.</button><button data-r="24">24 mies.</button><button data-r="year">Rok</button></div>
@@ -241,10 +248,10 @@ function renderOverview(){
     <span class="chip" id="fnorm" title="Przelicza koszty na 30 dni, żeby porównać okresy różnej długości">Na 30 dni</span>
   </div>
   <div class="grid cols2">
-    <div class="card"><h2>Koszt faktur</h2><div class="chartbox"><canvas id="c1"></canvas></div></div>
-    <div class="card"><h2>Zużycie wody</h2><div class="chartbox"><canvas id="c4"></canvas></div></div>
-    <div class="card"><h2>Ceny za m³ (brutto)</h2><p class="hint" id="c3note"></p><div class="chartbox"><canvas id="c3"></canvas></div></div>
-    <div class="card"><h2>Rok po roku</h2><div class="tscroll"><table><thead><tr><th>Rok</th><th>Faktur</th><th>m³ dom</th><th>m³ ogród</th><th>Koszt zł</th><th>zł/m³</th></tr></thead><tbody>${yrows}</tbody></table></div></div>
+    <div class="card cc" id="k-cost" style="--kc:var(--c-total)"><h2>Koszt faktur</h2><p class="hint">Kliknij słupek, aby otworzyć fakturę.</p><div class="chartbox"><canvas id="c1"></canvas></div></div>
+    <div class="card cc" id="k-usage" style="--kc:var(--c-garden)"><h2>Zużycie wody</h2><p class="hint">Dom i ogród, m³ na fakturę. Kliknij słupek, aby otworzyć fakturę.</p><div class="chartbox"><canvas id="c4"></canvas></div></div>
+    <div class="card cc" id="k-prices" style="--kc:var(--c-sewage)"><h2>Ceny za m³ (brutto)</h2><p class="hint" id="c3note"></p><div class="chartbox"><canvas id="c3"></canvas></div></div>
+    <div class="card cc" id="k-years" style="--kc:var(--c-cost)"><h2>Rok po roku</h2><p class="hint">Kliknij rok, aby zobaczyć jego faktury.</p><div class="tscroll"><table><thead><tr><th>Rok</th><th>Faktur</th><th>m³ dom</th><th>m³ ogród</th><th>Koszt zł</th><th>zł/m³</th></tr></thead><tbody>${yrows}</tbody></table></div></div>
   </div>`;
   const sync=()=>{
     document.querySelectorAll("#frange button").forEach(b=>b.classList.toggle("on",b.dataset.r===F.range));
@@ -257,6 +264,19 @@ function renderOverview(){
   $("#fgarden").onclick=()=>{F.garden=!F.garden;sync();drawCharts()};
   $("#fnorm").onclick=()=>{F.norm=!F.norm;sync();drawCharts()};
   sync(); drawCharts();
+  const go=id=>{const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash")};
+  $("#t-over").querySelectorAll(".kpi").forEach(k=>{const run=()=>{const a=k.dataset.act;
+      if(a==="last")openInvoice(L.number);
+      else if(a==="prices")go("k-prices");
+      else if(a==="usage")go("k-usage");
+      else if(a==="cost"){F.norm=true;sync();drawCharts();go("k-cost")}
+      else if(a==="perm3"){SORT={k:"perM3",asc:false};YF="all";Q="";renderInv();show("inv")}};
+    k.onclick=run;k.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();run()}}});
+  $("#k-years").onclick=e=>{const tr=e.target.closest("tr.yr");if(!tr)return;YF=tr.dataset.y;Q="";SORT={k:"t",asc:false};renderInv();show("inv")};
+}
+function openInvoice(num){
+  Q=num;YF="all";SORT={k:"t",asc:false};renderInv();show("inv");
+  const tr=document.querySelector("#tb tr.row");if(tr)tr.click();
 }
 
 let SORT={k:"t",asc:false}, Q="", YF="all";
