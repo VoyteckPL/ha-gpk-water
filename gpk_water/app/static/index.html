@@ -212,6 +212,11 @@ function timeAxis(o,R){ // oś X liniowa w czasie
   const prev=o.plugins.tooltip.callbacks||{}; o.plugins.tooltip.callbacks={...prev,title:items=>items.length?fmtD(new Date(items[0].parsed.x).toISOString().slice(0,10)):""};
   return o;
 }
+function allTicks(o,n,max=36){ // pokazuje każdą etykietę (obrócone, gdy jest ich dużo), a gdy za gęsto - rzadziej
+  const t=o.scales.x.ticks=o.scales.x.ticks||{};
+  if(n<=max){t.autoSkip=false;t.maxRotation=n>10?90:0;t.minRotation=n>10?90:0;t.font={size:n>20?9.5:11}}
+  return o;
+}
 function mk(id,cfg){
   if(charts[id]) charts[id].destroy();
   const el=document.getElementById(id); if(!el) return;
@@ -236,7 +241,7 @@ function drawInvUse(){ // zużycie z faktur (gdy brak wodomierzy w HA)
       return {label:`${y} · ${nf(data.reduce((s,v)=>s+(v||0),0),1)} m³`,data,backgroundColor:css(YCOL[k%YCOL.length]),borderRadius:3}});
     o.scales.y=Y("m³ / miesiąc","m3");o.scales.x={ticks:{color:css("--mute")},grid:{display:false}};
     mk("cm",{type:"bar",data:{labels,datasets:sets},options:o});return}
-  o.scales.x.stacked=true;o.scales.y={stacked:true,...Y("m³ / faktura","m3")};
+  o.scales.x.stacked=true;o.scales.y={stacked:true,...Y("m³ / faktura","m3")};allTicks(o,R.length);
   o.plugins.tooltip.callbacks={title:items=>{const i=R[items[0].dataIndex];return fmtD(i.issue_date)+" ("+i.days+" dni)"}};
   o.onClick=(e,els)=>{if(els.length)openInvoice(R[els[0].index].number)};
   mk("cm",{type:"bar",data:{labels:R.map(i=>monthShort(i.t)),datasets:[
@@ -251,7 +256,7 @@ function drawInv(){
   else{
     const parts=[["Woda – dom","gross_water_home","--c-home"],["Woda – ogród","gross_water_garden","--c-garden"],["Ścieki","gross_sewage","--c-sewage"],["Abonament","gross_abo","--c-abo"],["Inne","gross_other","--c-other"]];
     const dsets=parts.filter(p=>R.some(i=>i[p[1]]>0)).map(p=>({label:p[0],data:R.map(i=>+i[p[1]].toFixed(2)),backgroundColor:css(p[2]),stack:"s",borderRadius:2}));
-    const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y("zł / faktura")};
+    const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y("zł / faktura")}; allTicks(o,R.length);
     o.plugins.tooltip.callbacks={footer:items=>"Razem: "+zl(items.reduce((s,x)=>s+x.parsed.y,0)),title:items=>fmtD(R[items[0].dataIndex].issue_date)};
     o.onClick=(e,els)=>{if(els.length)openInvoice(R[els[0].index].number)}; o.onHover=(e,els)=>{e.native.target.style.cursor=els.length?"pointer":"default"};
     mk("c1",{type:"bar",data:{labels:R.map(i=>monthShort(i.t)),datasets:dsets},options:o});
@@ -410,9 +415,9 @@ function drawMet(){
   let allowed,def,rows,hourly=false;
   const yr=G.range==="year"?[...G.years][0]:null;
   if(G.range==="24h"){allowed=hasH?["hour"]:["day"];def=allowed[0]}
-  else if(G.range==="7"){allowed=hasH?["hour","day"]:["day"];def=allowed[0]}
+  else if(G.range==="7"){allowed=hasH?["day","hour"]:["day"];def="day"}
   else if(G.range==="30"){allowed=["day","week"];def="day"}
-  else if(G.range==="year"){allowed=["day","week","month"];def="week"}
+  else if(G.range==="year"){allowed=["day","week","month"];def="month"}
   else{allowed=["week","month"];def="month"}
   const res=allowed.includes(G.res)?G.res:def;
   sel.innerHTML=allowed.map(a=>`<option value="${a}" ${a===res?"selected":""}>${RES_L[a]}</option>`).join("");
@@ -428,12 +433,13 @@ function drawMet(){
     const x=new Date(d+"T12:00:00");x.setDate(x.getDate()-((x.getDay()+6)%7));return iso(x)};
   const g={}; rows.forEach(r=>{const k=key(r.d);(g[k]=g[k]||{home:0,sub:0,n:0});g[k].home+=r.home;g[k].sub+=r.sub;g[k].n++});
   const ks=Object.keys(g).sort(), f=hourly?1000:1;
-  const lab=k=>res==="hour"?(G.range==="24h"?k.slice(11)+":00":k.slice(8,10)+"."+k.slice(5,7)+" "+k.slice(11)+"h"):res==="month"?k.slice(5)+"."+k.slice(2,4):k.slice(8)+"."+k.slice(5,7);
+  const MN=["Sty","Lut","Mar","Kwi","Maj","Cze","Lip","Sie","Wrz","Paź","Lis","Gru"];
+  const lab=k=>res==="hour"?(G.range==="24h"?k.slice(11):k.slice(8,10)+"."+k.slice(5,7)+" "+k.slice(11)+"h"):res==="month"?(G.range==="year"?MN[+k.slice(5)-1]:MN[+k.slice(5)-1]+" "+k.slice(2,4)):k.slice(8)+"."+k.slice(5,7);
   const tH=rows.reduce((s,r)=>s+r.home,0), tS=rows.reduce((s,r)=>s+r.sub,0), nd=hourly?rows.length/24:rows.length;
   const rng=G.range==="year"?String(yr):({"24h":"ostatnie 24 h","7":"ostatnie 7 dni","30":"ostatnie 30 dni",all:"cała historia"})[G.range];
   $("#msum").innerHTML=`${rng}: <b>${nf(tH+tS,1)} m³</b> (dom ${nf(tH,1)} + ogród ${nf(tS,1)}) · średnio <b>${nf((tH+tS)/Math.max(nd,1/24)*1000,0)} l/dobę</b> · koszt wg obecnych cen ≈ <b>${zl(tH*(p.water+p.sewage)+tS*p.water)}</b> (bez abonamentu)`;
   const unit=hourly?"l / godz.":"m³ / "+({day:"dobę",week:"tydzień",month:"miesiąc"})[res];
-  const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y(unit,hourly?"":"m3")};
+  const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y(unit,hourly?"":"m3")}; allTicks(o,ks.length);
   o.plugins.tooltip.callbacks={title:i=>{const k=ks[i[0].dataIndex];return res==="hour"?k.slice(8,10)+"."+k.slice(5,7)+" "+k.slice(11)+":00":res==="month"?k.slice(5)+"."+k.slice(0,4):res==="week"?"tydzień od "+fmtD(k):fmtD(k)},
     label:c=>hourly?`${c.dataset.label}: ${nf(c.parsed.y,0)} l`:`${c.dataset.label}: ${nf(c.parsed.y,2)} m³ (${nf(c.parsed.y*1000,0)} l)`,
     footer:i=>{const x=g[ks[i[0].dataIndex]];return hourly?"Razem "+nf((x.home+x.sub)*1000,0)+" l":"Razem "+nf(x.home+x.sub,2)+" m³ · "+nf((x.home+x.sub)/x.n*1000,0)+" l/dobę"}};

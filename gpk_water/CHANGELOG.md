@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.1
+- Domyślne widoki zużycia: 7 dni i 30 dni po dniach, Rok po miesiącach (24 h po godzinach).
+- Wykresy pokazują każdą etykietę osi (obróconą, gdy jest ich dużo) zamiast co drugiej.
+
 ## 0.6.0
 - Przegląd uporządkowany: 4 kafelki (bieżący okres, prognoza, ostatnia faktura, ceny) i jeden wspólny filtr zakresu dla wszystkich wykresów: 24 h, 7 dni, 30 dni, Rok (z porównaniem lat) i Wszystko.
 - Wykres zużycia z wodomierzy ma teraz widok godzinowy (24 h i 7 dni) oraz wybór szczegółowości (godziny, dni, tygodnie, miesiące). Dom i ogród włączasz klikając legendę.
