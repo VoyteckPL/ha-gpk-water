@@ -98,7 +98,7 @@ input{box-sizing:border-box;max-width:100%}.form input[type=time]{width:132px}
 .form{display:grid;grid-template-columns:minmax(120px,170px) 1fr;gap:10px 12px;align-items:start}.form>label{padding-top:7px;color:var(--mute);font-size:14px}
 .chk{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink)}.ev{padding:6px 0;border-top:1px solid var(--line)}
 @media(max-width:560px){.form{grid-template-columns:1fr}.form>label{padding-top:0}}
-@media(max-width:560px){.seg button{padding:5px 8px;font-size:12px}#fyears button{padding:5px 5px;font-size:12px}.filters{gap:6px;position:static}.kpi .val{font-size:22px}main{padding:12px}.chartbox{height:260px}}
+@media(max-width:560px){.seg button{padding:5px 8px;font-size:12px}.rbar .seg button{padding:5px 6px;font-size:12px}.filters{gap:6px;position:static}.kpi .val{font-size:22px}main{padding:12px}.chartbox{height:260px}}
 @media(max-width:560px){header{padding-top:6px}.top{flex-wrap:nowrap;gap:7px}.logo{padding:3px 6px}.logo img{height:20px}.ttl{min-width:0}.ttl h1{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ttl small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px}.pill{padding:6px;gap:0}.pill span:last-child{display:none}.dot{width:7px;height:7px}.iconbtn{padding:2px 7px;font-size:13px}}
 </style>
 </head>
@@ -225,14 +225,6 @@ function mk(id,cfg){
 function ds(label,color,data,extra={}){return Object.assign({label,data,borderColor:color,backgroundColor:color+"33",borderWidth:2.2,pointRadius:2.5,pointHoverRadius:5,tension:0,cubicInterpolationMode:'monotone'},extra)}
 const Y = (label,unit)=>({title:{display:true,text:label,color:css("--mute")},ticks:{color:css("--mute"),callback:v=>nf(v,Number.isInteger(v)?0:(unit==="m3"?2:1))},grid:{color:css("--line")+"88"}});
 
-function drawCostCompare(){
-  const M=monthly(),ys=[...G.years].sort((a,b)=>a-b),labels=["Sty","Lut","Mar","Kwi","Maj","Cze","Lip","Sie","Wrz","Paź","Lis","Gru"],now=new Date();
-  const sets=ys.map((y,k)=>{const data=(M[y]||[]).map((o,m)=>(y===now.getFullYear()&&m>now.getMonth())||(!o.home&&!o.garden&&!o.homeC)?null:+(o.homeC+o.gardC).toFixed(2));
-    return {label:`${y} · ${nf(data.reduce((s,v)=>s+(v||0),0),0)} zł`,data,backgroundColor:css(YCOL[k%YCOL.length]),borderRadius:3}});
-  const o=chartBase();o.scales.y=Y("zł / miesiąc");o.scales.x={ticks:{color:css("--mute")},grid:{display:false}};
-  o.plugins.tooltip.callbacks={label:c=>`${c.dataset.label.split(" ·")[0]}: ${zl(c.parsed.y)}`};
-  mk("c1",{type:"bar",data:{labels,datasets:sets},options:o});
-}
 function drawInvUse(){ // zużycie z faktur (gdy brak wodomierzy w HA)
   const R=filtered(),o=chartBase();
   if(compareMode()){
@@ -249,27 +241,71 @@ function drawInvUse(){ // zużycie z faktur (gdy brak wodomierzy w HA)
     {label:"Ogród",data:R.map(i=>i.water_garden_m3),backgroundColor:css("--c-garden"),stack:"u",borderRadius:2}]},options:o});
   $("#msum").textContent="Z faktur. Podłącz wodomierze (zakładka Liczniki), aby zobaczyć zużycie dobowe i godzinowe.";
 }
-function drawInv(){
-  const R=filtered(); if(!R.length) return;
-  $("#t-cost").textContent=compareMode()?"Porównanie lat; koszt przypisany do miesięcy wg okresu rozliczeniowego (w nawiasie suma roku).":(G.range==="year"||G.range==="all"?"Kliknij słupek, aby otworzyć fakturę.":"Faktury z tego okresu (lub ostatnia). Kliknij słupek, aby ją otworzyć.");
-  if(compareMode()) drawCostCompare();
-  else{
-    const parts=[["Woda – dom","gross_water_home","--c-home"],["Woda – ogród","gross_water_garden","--c-garden"],["Ścieki","gross_sewage","--c-sewage"],["Abonament","gross_abo","--c-abo"],["Inne","gross_other","--c-other"]];
-    const dsets=parts.filter(p=>R.some(i=>i[p[1]]>0)).map(p=>({label:p[0],data:R.map(i=>+i[p[1]].toFixed(2)),backgroundColor:css(p[2]),stack:"s",borderRadius:2}));
-    const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y("zł / faktura")}; allTicks(o,R.length);
-    o.plugins.tooltip.callbacks={footer:items=>"Razem: "+zl(items.reduce((s,x)=>s+x.parsed.y,0)),title:items=>fmtD(R[items[0].dataIndex].issue_date)};
-    o.onClick=(e,els)=>{if(els.length)openInvoice(R[els[0].index].number)}; o.onHover=(e,els)=>{e.native.target.style.cursor=els.length?"pointer":"default"};
-    mk("c1",{type:"bar",data:{labels:R.map(i=>monthShort(i.t)),datasets:dsets},options:o});
-  }
-  drawPrices(INV,"c3");
+const C={range:"year",years:null}, PR={range:"all"};
+const MN=["Sty","Lut","Mar","Kwi","Maj","Cze","Lip","Sie","Wrz","Paź","Lis","Gru"];
+// koszt faktur rozłożony na miesiące kalendarzowe wg okresu rozliczeniowego, osobno na składniki
+function monthlyParts(){
+  const out={};
+  INV.forEach(i=>{
+    const a=D(i.period_start)+864e5,b=D(i.period_end),n=Math.max(Math.round((b-a)/864e5)+1,1);
+    for(let t=a;t<=b;t+=864e5){const d=new Date(t),k=d.getFullYear()*12+d.getMonth();
+      const o=out[k]=out[k]||{hw:0,gw:0,sw:0,ab:0,ot:0};
+      o.hw+=i.gross_water_home/n;o.gw+=i.gross_water_garden/n;o.sw+=i.gross_sewage/n;o.ab+=i.gross_abo/n;o.ot+=(i.gross_other||0)/n}
+  });
+  return out;
 }
-function drawCharts(){drawUse();drawInv()}
+const PARTS=[["Woda – dom","hw","--c-home"],["Woda – ogród","gw","--c-garden"],["Ścieki","sw","--c-sewage"],["Abonament","ab","--c-abo"],["Inne","ot","--c-other"]];
+const tot=o=>o?o.hw+o.gw+o.sw+o.ab+o.ot:0;
+function drawCost(){
+  const M=monthlyParts(), now=new Date(), nowK=now.getFullYear()*12+now.getMonth(), o=chartBase();
+  const lastK=Math.max(...Object.keys(M).map(Number));
+  let labels,sets,hint,unit="zł / miesiąc";
+  const stack=(keys,lab)=>{labels=lab;sets=PARTS.filter(p=>keys.some(k=>M[k]&&M[k][p[1]]>0.005)).map(p=>({label:p[0],data:keys.map(k=>M[k]?+M[k][p[1]].toFixed(2):null),backgroundColor:css(p[2]),stack:"s",borderRadius:2}));
+    o.scales.x.stacked=true;o.scales.y={stacked:true,...Y(unit)};
+    o.plugins.tooltip.callbacks={footer:it=>"Razem: "+zl(it.reduce((s,x)=>s+(x.parsed.y||0),0))}};
+  if(C.range==="12m"){
+    const keys=Array.from({length:12},(_,i)=>Math.min(nowK,lastK)-11+i);
+    stack(keys,keys.map(k=>MN[k%12]+" "+String(Math.floor(k/12)).slice(2)));hint="Ostatnie 12 miesięcy, koszt wg faktur przypisany do miesięcy okresu rozliczeniowego.";
+  }else if(C.range==="year"&&C.years.size===1){
+    const y=[...C.years][0],keys=Array.from({length:12},(_,m)=>y*12+m);
+    stack(keys,MN);hint=`${y}: koszt wg miesięcy. Suma ${nf(keys.reduce((s,k)=>s+tot(M[k]),0),0)} zł.`;
+  }else if(C.range==="year"){
+    const ys=[...C.years].sort((a,b)=>a-b);labels=MN;
+    sets=ys.map((y,j)=>{const data=MN.map((_,m)=>M[y*12+m]?+tot(M[y*12+m]).toFixed(2):null);
+      return {label:`${y} · ${nf(data.reduce((s,v)=>s+(v||0),0),0)} zł`,data,backgroundColor:css(YCOL[j%YCOL.length]),borderRadius:3}});
+    o.scales.y=Y(unit);o.scales.x={ticks:{color:css("--mute")},grid:{display:false}};
+    o.plugins.tooltip.callbacks={label:c=>`${c.dataset.label.split(" ·")[0]}: ${zl(c.parsed.y)}`};hint="Porównanie wybranych lat wg miesięcy (w legendzie suma roku).";
+  }else{
+    const yrs=[...new Set(Object.keys(M).map(k=>Math.floor(+k/12)))].sort((a,b)=>a-b);
+    labels=yrs.map(String);
+    sets=PARTS.filter(p=>Object.values(M).some(v=>v[p[1]]>0.005)).map(p=>({label:p[0],data:yrs.map(y=>+Array.from({length:12},(_,m)=>M[y*12+m]?M[y*12+m][p[1]]:0).reduce((a,b)=>a+b,0).toFixed(2)),backgroundColor:css(p[2]),stack:"s",borderRadius:2}));
+    o.scales.x.stacked=true;o.scales.y={stacked:true,...Y("zł / rok")};
+    o.plugins.tooltip.callbacks={footer:it=>"Razem: "+zl(it.reduce((s,x)=>s+(x.parsed.y||0),0))};hint="Suma kosztów w poszczególnych latach (bieżący rok - do ostatniej faktury).";
+  }
+  allTicks(o,labels.length,40);
+  $("#t-cost").textContent=hint;
+  mk("c1",{type:"bar",data:{labels,datasets:sets},options:o});
+}
+function drawPriceChart(){
+  const mo={"12m":12,"24m":24,"60m":60}[PR.range];
+  const R=mo?INV.filter(i=>i.t>=Date.now()-mo*30.4375*864e5):INV;
+  drawPrices(R.length>=2?R:INV.slice(-2),"c3");
+}
+function drawCharts(){drawUse();drawCost();drawPriceChart()}
 function drawPrices(R,id){
-  const mkp=(k)=>R.map(i=>({x:i.t,y:+i[k].toFixed(3)}));
-  const sets=[ds("Woda",css("--c-home"),mkp("wp"),{stepped:"before",pointRadius:2}),
-              ds("Ścieki",css("--c-sewage"),mkp("sp"),{stepped:"before",pointRadius:2}),
-              ds("Razem",css("--c-total"),R.map(i=>({x:i.t,y:+(i.wp+i.sp).toFixed(3)})),{stepped:"before",borderDash:[5,4],pointRadius:0})];
+  const val={wp:i=>i.wp,sp:i=>i.sp,tot:i=>i.wp+i.sp};
+  // punkt = zmiana ceny względem poprzedniej faktury (pełna historia)
+  const chg=k=>R.map(i=>{const j=INV.indexOf(i),p=j>0?INV[j-1]:null,v=val[k](i),pv=p?val[k](p):null;
+    return pv!=null&&Math.abs(v-pv)>0.0005?{from:pv,to:v,pct:(v/pv-1)*100,date:i.issue_date}:null});
+  const mkp=k=>R.map(i=>({x:i.t,y:+val[k](i).toFixed(3)}));
+  const mkset=(label,col,k,extra)=>{const c=chg(k);
+    return {...ds(label,col,mkp(k),{stepped:"before",pointRadius:x=>c[x.dataIndex]?5:0,pointHoverRadius:7,pointHitRadius:16,pointBackgroundColor:col,...extra}),_chg:c}};
+  const sets=[mkset("Woda",css("--c-home"),"wp"),mkset("Ścieki",css("--c-sewage"),"sp"),mkset("Razem",css("--c-total"),"tot",{borderDash:[5,4]})];
   const o=timeAxis(chartBase(),R); o.scales.y=Y("zł / m³ (brutto)");
+  o.interaction={mode:"nearest",intersect:true};
+  o.plugins.tooltip.callbacks={
+    title:it=>it.length?fmtD(R[it[0].dataIndex].issue_date):"",
+    label:c=>{const m=c.dataset._chg[c.dataIndex];return m?`${c.dataset.label}: ${nf(m.from,2)} → ${nf(m.to,2)} zł (${m.pct>0?"+":""}${nf(m.pct,1)}%)`:`${c.dataset.label}: ${nf(c.parsed.y,2)} zł`}};
   mk(id,{type:"line",data:{datasets:sets},options:o});
   const a=R[0],b=R[R.length-1], n=$("#"+id+"note");
   if(n) n.innerHTML=`Woda ${arrow(pct(b.wp,a.wp))} · ścieki ${arrow(pct(b.sp,a.sp))} · razem ${arrow(pct(b.wp+b.sp,a.wp+a.sp))} w wybranym okresie`;
@@ -298,30 +334,31 @@ function renderOverview(){
         <div class="r" data-act="perm3" title="Faktury wg kosztu 1 m³"><span class="n"><i style="background:var(--c-cost)"></i>1 m³ dom</span><b style="color:var(--c-cost)">${nf(L.perM3,2)}</b><small>&nbsp;</small></div>
       </div></div>
   </div>
-  <div class="rbar">
-    <div class="seg" id="grng">${[["24h","24 h"],["7","7 dni"],["30","30 dni"],["year","Rok"],["all","Wszystko"]].map(([k,l])=>`<button data-r="${k}">${l}</button>`).join("")}</div>
-    <div class="seg" id="fyears">${years.slice().reverse().map(y=>`<button data-y="${y}">${y}</button>`).join("")}</div>
-  </div>
-  <div class="card cc" id="k-use" style="--kc:var(--c-garden);margin-top:12px">
+  <div class="card cc" id="k-use" style="--kc:var(--c-garden);margin-top:14px">
     <div class="chead"><h2 id="h-use">Zużycie wody</h2><select id="gres" class="hide" title="Szczegółowość"></select></div>
+    <div class="rbar" id="bar-use"></div>
     <p class="hint" id="msum"></p><div class="chartbox"><canvas id="cm"></canvas></div></div>
   <div class="grid cols2" style="margin-top:14px">
-    <div class="card cc" id="k-cost" style="--kc:var(--c-total)"><h2 id="h-cost">Koszt faktur</h2><p class="hint" id="t-cost"></p><div class="chartbox"><canvas id="c1"></canvas></div></div>
-    <div class="card cc" id="k-prices" style="--kc:var(--c-sewage)"><h2>Ceny za m³ (brutto)</h2><p class="hint" id="c3note"></p><div class="chartbox"><canvas id="c3"></canvas></div></div>
+    <div class="card cc" id="k-cost" style="--kc:var(--c-total)"><h2 id="h-cost">Koszt faktur</h2><div class="rbar" id="bar-cost"></div><p class="hint" id="t-cost"></p><div class="chartbox"><canvas id="c1"></canvas></div></div>
+    <div class="card cc" id="k-prices" style="--kc:var(--c-sewage)"><h2>Ceny za m³ (brutto)</h2><div class="rbar" id="bar-pr"></div><p class="hint" id="c3note"></p><div class="chartbox"><canvas id="c3"></canvas></div></div>
   </div>
   <div class="card cc" id="k-years" style="--kc:var(--c-cost);margin-top:14px"><h2>Rok po roku</h2><p class="hint">Kliknij rok, aby zobaczyć jego faktury.</p><div class="tscroll"><table><thead><tr><th>Rok</th><th>Faktur</th><th>m³ dom</th><th>m³ ogród</th><th>Koszt zł</th><th>zł/m³</th></tr></thead><tbody>${yrows}</tbody></table></div></div>`;
   if(!G.years) G.years=new Set([years[0]]);
-  const sync=()=>{
-    document.querySelectorAll("#grng button").forEach(b=>b.classList.toggle("on",b.dataset.r===G.range));
-    $("#fyears").classList.toggle("hide",G.range!=="year");
-    document.querySelectorAll("#fyears button").forEach(b=>b.classList.toggle("on",G.years.has(+b.dataset.y)));
+  if(!C.years) C.years=new Set([years[0]]);
+  const bar=(id,st,ranges,yearsOn,after)=>{
+    const el=$(id);
+    const draw=()=>{el.innerHTML=`<div class="seg">${ranges.map(([k,l])=>`<button data-r="${k}" class="${st.range===k?"on":""}">${l}</button>`).join("")}</div>`
+      +(yearsOn&&st.range==="year"?`<div class="seg">${years.slice().reverse().map(y=>`<button data-y="${y}" class="${st.years.has(y)?"on":""}">${y}</button>`).join("")}</div>`:"")};
+    draw();
+    el.onclick=e=>{const r=e.target.dataset.r,y=+e.target.dataset.y;
+      if(r){st.range=r}else if(y){if(st.years.has(y)){if(st.years.size>1)st.years.delete(y)}else st.years.add(y)}else return;
+      if(st===G)G.res=null; draw(); after()};
   };
-  $("#grng").onclick=e=>{const r=e.target.dataset.r;if(!r)return;G.range=r;G.res=null;sync();drawCharts()};
-  $("#fyears").onclick=e=>{const y=+e.target.dataset.y;if(!y)return;
-    if(G.years.has(y)){if(G.years.size>1)G.years.delete(y)}else G.years.add(y);
-    G.res=null;sync();drawCharts()};
+  bar("#bar-use",G,[["24h","24 h"],["7","7 dni"],["30","30 dni"],["year","Rok"],["all","Wszystko"]],true,drawUse);
+  bar("#bar-cost",C,[["12m","12 mies."],["year","Rok"],["all","Lata"]],true,drawCost);
+  bar("#bar-pr",PR,[["12m","12 mies."],["24m","2 lata"],["60m","5 lat"],["all","Wszystko"]],false,drawPriceChart);
   $("#gres").onchange=e=>{G.res=e.target.value;drawUse()};
-  sync(); drawCharts(); if(MET) fillMetTile();
+  drawCharts(); if(MET) fillMetTile();
   const go=id=>{const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash")};
   $("#t-over").querySelectorAll(".kpi").forEach(k=>{const run=(ev)=>{const a=(ev&&ev.target&&ev.target.closest&&ev.target.closest(".r[data-act]")||k).dataset.act;
       if(a==="last")openInvoice(L.number);
@@ -390,7 +427,6 @@ function drawUse(){
   if(!$("#cm")) return;
   const ok=METD&&METD.configured&&!METD.error&&METD.daily;
   $("#h-use").textContent=G.range==="year"&&compareMode()?"Zużycie wg miesięcy":"Zużycie wody";
-  $("#h-cost").textContent=compareMode()?"Koszt wg miesięcy":"Koszt faktur";
   if(!ok){$("#gres").classList.add("hide");drawInvUse();return}
   drawMet();
 }
