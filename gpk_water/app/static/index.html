@@ -43,15 +43,14 @@ main{max-width:1180px;margin:0 auto;padding:16px}
 .kpi .lbl{color:var(--mute);font-size:12.5px;display:flex;justify-content:space-between;align-items:center;gap:6px}
 .kpi .ic{width:28px;height:28px;border-radius:9px;background:color-mix(in srgb,var(--kc) 18%,transparent);display:grid;place-items:center;font-size:15px;flex:none}
 .card.cc{border-top:4px solid var(--kc)}
-.kpi.multi{grid-column:span 2}
+.kpi.multi{grid-column:auto}
 .kpi.multi .rows{display:grid;gap:0;margin-top:4px}
-.kpi.multi .r{display:flex;align-items:baseline;gap:8px;padding:7px 0;border-top:1px solid var(--line)}
+.kpi.multi .r{display:flex;align-items:baseline;gap:6px;padding:3px 0;border-top:1px solid var(--line)}
 .kpi.multi .r:first-child{border-top:0}
-.kpi.multi .r .n{flex:1;color:var(--mute);font-size:13px;display:flex;align-items:center;gap:7px}
+.kpi.multi .r .n{flex:1;color:var(--mute);font-size:12px;display:flex;align-items:center;gap:7px}
 .kpi.multi .r .n i{width:9px;height:9px;border-radius:3px;flex:none}
-.kpi.multi .r b{font-size:21px;letter-spacing:-.3px}
-.kpi.multi .r small{color:var(--mute);font-size:12px;min-width:78px;text-align:right}
-@media(max-width:420px){.kpi.multi{grid-column:1/-1}}
+.kpi.multi .r b{font-size:16px;letter-spacing:-.3px}
+.kpi.multi .r small{color:var(--mute);font-size:11px;min-width:0;text-align:right;white-space:nowrap}
 .flash{animation:fl 1.2s ease}@keyframes fl{0%,60%{box-shadow:0 0 0 3px var(--accent2)}100%{box-shadow:var(--shadow)}}
 .kpi .val{font-size:25px;font-weight:700;margin:4px 0 2px;letter-spacing:-.3px;color:var(--kc)}
 .kpi .val small{font-size:13px;font-weight:550;color:var(--mute);margin-left:3px}
@@ -280,16 +279,18 @@ function renderOverview(){
     return `<tr class="yr" data-y="${y}" style="cursor:pointer"><td>${y}</td><td>${r.length}</td><td>${nf(r.reduce((s,i)=>s+i.water_home_m3,0),0)}</td><td>${nf(r.reduce((s,i)=>s+i.water_garden_m3,0),0)}</td><td><b>${nf(g)}</b></td><td>${nf(m?g/m:null)}</td></tr>`}).join("");
   $("#t-over").innerHTML=`
   <div class="grid kpis">
+    <div id="met-a" style="display:contents"></div>
     ${kpi("Ostatnia faktura",nf(L.invoice_gross),"zł",`${fmtD(L.issue_date)} · ${nf(L.water_home_m3,0)}+${nf(L.water_garden_m3,0)} m³`,"--c-total","🧾","last")}
     <div class="card kpi multi" style="--kc:var(--c-home)" data-act="prices" role="button" tabindex="0" title="Kliknij, aby zobaczyć wykres cen">
-      <div class="lbl"><span>Ceny wody (brutto)</span><span class="ic">💧</span></div>
+      <div class="lbl"><span>Ceny za m³</span><span class="ic">💧</span></div>
       <div class="rows">
-        <div class="r"><span class="n"><i style="background:var(--c-home)"></i>Woda</span><b style="color:var(--c-home)">${nf(L.wp,2)}</b><small>zł/m³ ${arrow(pct(L.wp,P?P.wp:null))}</small></div>
-        <div class="r"><span class="n"><i style="background:var(--c-sewage)"></i>Ścieki</span><b style="color:var(--c-sewage)">${nf(L.sp,2)}</b><small>zł/m³ ${arrow(pct(L.sp,P?P.sp:null))}</small></div>
-        <div class="r" data-act="perm3" title="Faktury wg kosztu 1 m³"><span class="n"><i style="background:var(--c-cost)"></i>Realny koszt 1 m³ (dom)</span><b style="color:var(--c-cost)">${nf(L.perM3,2)}</b><small>zł/m³</small></div>
+        <div class="r"><span class="n"><i style="background:var(--c-home)"></i>Woda</span><b style="color:var(--c-home)">${nf(L.wp,2)}</b><small>${arrow(pct(L.wp,P?P.wp:null))}</small></div>
+        <div class="r"><span class="n"><i style="background:var(--c-sewage)"></i>Ścieki</span><b style="color:var(--c-sewage)">${nf(L.sp,2)}</b><small>${arrow(pct(L.sp,P?P.sp:null))}</small></div>
+        <div class="r" data-act="perm3" title="Faktury wg kosztu 1 m³"><span class="n"><i style="background:var(--c-cost)"></i>1 m³ dom</span><b style="color:var(--c-cost)">${nf(L.perM3,2)}</b><small>&nbsp;</small></div>
       </div></div>
     ${kpi("Średnio miesięcznie",nf(a12,0),"zł",ap?arrow(pct(a12,ap))+" vs rok wcześniej":"ostatnie 12 mies.","--c-avg","📅","cost")}
     ${kpi("Zużycie roczne (dom)",nf(yr,0),"m³","≈ "+nf(yr*1000/365,0)+" l/dobę","--c-garden","🌿","usage")}
+    <div id="met-b" style="display:contents"></div>
   </div>
   <div id="met-over"></div>
   <div class="filters" style="margin-top:14px">
@@ -336,18 +337,18 @@ function openInvoice(num){
 
 let MET=null;
 function fillMetTile(){
-  const box=$("#met-over"); if(!box||!MET) return;
-  const e=MET.estimate;
-  if(!MET.configured){box.innerHTML=`<div class="card" style="margin-top:14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span style="font-size:22px">🔌</span><div style="flex:1;min-width:200px"><b>Wodomierze z Home Assistant</b><div class="hint" style="margin:2px 0 0">Podłącz je, aby widzieć bieżące zużycie i szacunek kosztu przed fakturą.</div></div><button class="chip on" id="metgo">Podłącz</button></div>`;$("#metgo").onclick=()=>show("met");return}
-  if(MET.error||!e){box.innerHTML=`<div class="card" style="margin-top:14px;border-left:4px solid var(--bad)"><b>Wodomierze: nie można policzyć szacunku</b><p class="hint">${esc((MET.error||"brak danych").slice(0,200))} <a href="#" id="metgo">Ustawienia</a></p></div>`;$("#metgo").onclick=ev=>{ev.preventDefault();show("met")};return}
+  const A=$("#met-a"),B=$("#met-b"),box=$("#met-over"); if(!A||!MET) return;
+  const e=MET.estimate; B.innerHTML=""; box.innerHTML="";
+  const goMet=ev=>{if(ev)ev.preventDefault();show("met")};
+  if(!MET.configured){A.innerHTML=`<div class="card kpi" style="--kc:var(--c-est);grid-column:1/-1" role="button" tabindex="0"><div class="lbl"><span>Wodomierze z Home Assistant</span><span class="ic">🔌</span></div><div class="val">Podłącz</div><div class="sub">bieżące zużycie i prognoza kosztu przed fakturą</div></div>`;A.firstElementChild.onclick=goMet;return}
+  if(MET.error||!e){A.innerHTML=`<div class="card kpi" style="--kc:var(--c-other);grid-column:1/-1" role="button" tabindex="0"><div class="lbl"><span>Wodomierze: błąd</span><span class="ic">⚠️</span></div><div class="sub" style="margin-top:6px">${esc((MET.error||"brak danych").slice(0,160))}</div></div>`;A.firstElementChild.onclick=goMet;return}
   const t=(l,v,u,sub,c,ic)=>`<div class="card kpi" style="--kc:var(${c});cursor:default"><div class="lbl"><span>${l}</span><span class="ic">${ic}</span></div><div class="val">${v}<small>${u}</small></div><div class="sub">${sub||"&nbsp;"}</div></div>`;
-  box.innerHTML=`<div class="grid kpis" style="margin-top:14px">
-      ${t("Razem od faktury",nf(e.total),"zł",`${e.days} dni od ${fmtD(e.since)}`,"--c-est","⏱️")}
-      ${t("Dom",nf(e.cost_home+e.cost_abo),"zł",`${nf(e.m3_home,2)} m³ + abonament`,"--c-home","🏠")}
-      ${t("Ogród",nf(e.cost_garden),"zł",`${nf(e.m3_garden,2)} m³`,"--c-garden","🌿")}
-      ${t("Następna faktura",nf(e.next_invoice,0),"zł",`szacunek na ${e.typical_days} dni`,"--c-cost","🧾")}
-      ${t("Tempo (14 dni)",e.l_per_day!=null?nf(e.l_per_day,0):"–","l/dobę","dom + ogród","--c-avg","💧")}</div>
-    <div class="card cc" style="margin-top:14px;--kc:var(--c-home)"><h2>Zużycie z liczników</h2><p class="hint">Dane z HA od ${fmtD(MET.history_from)}.</p>
+  A.innerHTML=t("Bieżący okres",nf(e.total,0),"zł",`${e.days} dni od ${fmtD(e.since)}`,"--c-est","⏱️")
+    +t("Prognoza faktury",nf(e.next_invoice,0),"zł",`szacunek na ${e.typical_days} dni`,"--c-cost","🔮");
+  B.innerHTML=t("Dom od faktury",nf(e.cost_home+e.cost_abo),"zł",`${nf(e.m3_home,2)} m³ + abonament`,"--c-home","🏠")
+    +t("Ogród od faktury",nf(e.cost_garden),"zł",`${nf(e.m3_garden,2)} m³`,"--c-garden","🌿")
+    +t("Tempo (14 dni)",e.l_per_day!=null?nf(e.l_per_day,0):"–","l/dobę","dom + ogród","--c-avg","💧");
+  box.innerHTML=`<div class="card cc" style="margin-top:14px;--kc:var(--c-home)"><h2>Zużycie z liczników</h2><p class="hint">Dane z HA od ${fmtD(MET.history_from)}.</p>
       <div class="filters" style="position:static;padding:0;margin-bottom:10px"><div class="seg" id="mrange">${[["7","7 dni"],["30","30 dni"],["month","Ten miesiąc"],["prev","Poprzedni"],["90","90 dni"],["365","Rok"],["all","Wszystko"]].map(([k,l])=>`<button data-r="${k}">${l}</button>`).join("")}</div>
       <div class="seg" id="mgroup"><button data-g="day">Dni</button><button data-g="week">Tygodnie</button><button data-g="month">Miesiące</button></div></div>
       <div class="hint" id="msum"></div><div class="chartbox"><canvas id="cm"></canvas></div></div>`;

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.7
+- Przegląd: pierwszy rząd to „Bieżący okres” (koszt narosły od ostatniej faktury wg liczników) i „Prognoza faktury”, drugi to ostatnia faktura i kompaktowy kafel cen o tej samej wielkości.
+
 ## 0.5.6
 - Nagłówek na telefonie: znacznik synchronizacji to sama kropka (tekst po dotknięciu), podsumowanie „75 faktur · 2020–2026” mieści się w całości.
 
