@@ -12,12 +12,13 @@ import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from . import ha_out, mailer, meters, notify
+from . import ha_out, mailer, meters, notifications
 
 log = logging.getLogger("gpk.readings")
 RETRY_S = 600
-DEFAULTS = dict(enabled=False, day=1, time="08:00", window_days=5, to="faktury@gpkszemud.pl", cc_self=True,
-                subject="Stany liczników wody", intro="Stany liczników na dzień:", notify_service="", sanity=True)
+GPK_ADDR = "faktury@gpkszemud.pl"
+DEFAULTS = dict(enabled=False, day=1, time="08:00", window_days=5, to_gpk=True, extra="", cc_self=False,
+                subject="Stan liczników wody", address="", intro="Stany liczników na dzień:", sanity=True)
 EMAIL = re.compile(r"^[^@\s,;]+@[^@\s,;]+\.[^@\s,;]+$")
 
 
@@ -51,18 +52,31 @@ def save_settings(new: dict) -> dict:
     s["window_days"] = int(new.get("window_days", 5))
     if not 1 <= s["window_days"] <= 20:
         raise ValueError("Okno ponawiania: 1-20 dni")
-    s["to"] = ", ".join(emails(new.get("to", "")))
-    if not s["to"] or not all(EMAIL.match(x) for x in emails(s["to"])):
-        raise ValueError("Podaj poprawny adres odbiorcy")
-    s["cc_self"] = bool(new.get("cc_self", True))
-    s["subject"] = str(new.get("subject") or DEFAULTS["subject"]).strip()[:200]
+    s["to_gpk"] = bool(new.get("to_gpk", True))
+    s["extra"] = ", ".join(emails(new.get("extra", "")))
+    s["cc_self"] = bool(new.get("cc_self", False))
+    if not all(EMAIL.match(x) for x in emails(s["extra"])):
+        raise ValueError("Dodatkowy adres e-mail jest niepoprawny")
+    if not s["to_gpk"] and not s["extra"]:
+        raise ValueError("Wybierz odbiorcę: GPK lub podaj własny adres")
+    s["subject"] = str(new.get("subject") or DEFAULTS["subject"]).strip()[:120]
+    s["address"] = str(new.get("address") or "").strip()[:120]
     s["intro"] = str(new.get("intro") or DEFAULTS["intro"]).strip()[:200]
-    s["notify_service"] = str(new.get("notify_service") or "").strip()
     s["sanity"] = bool(new.get("sanity", True))
     allv = meters._read_all()
     allv["readings"] = s
     meters._write_all(allv)
     return s
+
+
+def recipients(s: dict, user: str) -> tuple[list[str], list[str]]:
+    """(do, kopia): GPK jeśli wybrano; własne adresy: jako Do, gdy GPK wyłączone, inaczej jako kopia."""
+    extra = emails(s.get("extra", ""))
+    if s.get("cc_self") and user and user not in extra:
+        extra.append(user)
+    if s.get("to_gpk", True):
+        return [GPK_ADDR], extra
+    return extra, []
 
 
 def tz() -> ZoneInfo:
@@ -82,7 +96,8 @@ def target(now: datetime, s: dict) -> datetime:
 
 
 def fmt(v: float) -> str:
-    return f"{v:.3f}".rstrip("0").rstrip(".")
+    """Jedno miejsce po przecinku, np. 1647.8"""
+    return f"{v:.1f}"
 
 
 def read_values(m: dict) -> dict:
@@ -123,10 +138,11 @@ def compose(now: datetime, vals: dict, s: dict) -> tuple[str, str]:
     lines = [f"{s['intro']} {now.strftime('%d-%m-%Y')}", "", f"Licznik wody główny: {fmt(vals['main'])} m³"]
     if vals.get("sub") is not None:
         lines.append(f"Licznik wody ogród: {fmt(vals['sub'])} m³")
-    return s["subject"], "\n".join(lines) + "\n"
+    subj = f"{s['subject']} {s['address']}".strip() if s.get("address") else s["subject"]
+    return subj, "\n".join(lines) + "\n"
 
 
-def preview(store, now: datetime | None = None) -> dict:
+def preview(store, user: str = "", now: datetime | None = None) -> dict:
     now = now or datetime.now(tz())
     s = get_settings()
     try:
@@ -134,7 +150,8 @@ def preview(store, now: datetime | None = None) -> dict:
     except Unavailable as e:
         return dict(ok=False, error=str(e))
     subj, body = compose(now, vals, s)
-    out = dict(ok=True, subject=subj, body=body, values=vals, to=emails(s["to"]))
+    to, cc = recipients(s, user)
+    out = dict(ok=True, subject=subj, body=body, values=vals, to=to, cc=cc)
     try:
         check_sanity(store, vals)
     except SanityError as e:
@@ -148,7 +165,7 @@ def _deliver(store, o: dict, sid: int, kind: str, now: datetime, force: bool) ->
     if s["sanity"] and not force:
         check_sanity(store, vals)
     user, pw = o["gmail_user"], o["gmail_app_password"]
-    to = emails(s["to"])
+    to, cc = recipients(s, user)
     if kind == "auto":
         try:
             if mailer.already_sent(user, pw, month):
@@ -159,11 +176,11 @@ def _deliver(store, o: dict, sid: int, kind: str, now: datetime, force: bool) ->
         except Exception as e:  # noqa: BLE001  - brak sprawdzenia nie blokuje wysyłki
             log.warning("nie udało się sprawdzić, czy mail już wyszedł: %s", e)
     subj, body = compose(now, vals, s)
-    mailer.send_mail(user, pw, to, [user] if s["cc_self"] else [], subj, body, month)
+    mailer.send_mail(user, pw, to, cc, subj, body, month)
     store.update_submission(sid, status="sent", sent_at=now.isoformat(timespec="seconds"), main=fmt(vals["main"]),
                             sub=fmt(vals["sub"]) if vals.get("sub") is not None else None, to_addr=", ".join(to), error=None)
-    notify.send("Wysłano stany liczników",
-                f"{subj}\n{body}Do: {', '.join(to)}", "readings_sent", s["notify_service"], "gpk_water_readings")
+    notifications.emit(store, "readings_sent", "Wysłano stany liczników", f"{body}Do: {', '.join(to + cc)}",
+                       f"rd:sent:{sid}", now)
 
 
 def _attempt(store, o, sid, kind, now, force=False) -> str:
@@ -181,8 +198,8 @@ def _attempt(store, o, sid, kind, now, force=False) -> str:
     store.update_submission(sid, status="failed", error=err)
     log.warning("wysyłka odczytów nieudana (%s, próba %s): %s", level, rec["attempts"], err)
     if not rec["notified"] and (level == "SanityError" or rec["attempts"] >= 3):
-        notify.send("Stany liczników nie zostały wysłane",
-                    f"Dodatek próbuje ponownie co 10 minut. Powód: {err}", "readings_failed", s["notify_service"], "gpk_water_readings_fail")
+        notifications.emit(store, "readings_failed", "Stany liczników nie zostały wysłane",
+                           f"Dodatek próbuje ponownie co 10 minut. Powód: {err}", f"rd:fail:{sid}", now)
         store.update_submission(sid, notified=1)
     return "failed"
 
@@ -207,9 +224,9 @@ def tick(store, o: dict, now: datetime | None = None) -> str:
                              error=f"nie udało się wysłać w ciągu {s['window_days']} dni")
         if len(store.submissions()) <= 1:  # pierwsze włączenie w środku miesiąca - bez alarmu
             return "missed"
-        notify.send("Stany liczników nie zostały wysłane",
-                    f"Minęło {s['window_days']} dni od terminu ({t.strftime('%d.%m')}) i odczyty za {month} nie wyszły. "
-                    "Wyślij je ręcznie w panelu (zakładka Odczyty).", "readings_missed", s["notify_service"], "gpk_water_readings_fail")
+        notifications.emit(store, "readings_failed", "Stany liczników nie zostały wysłane",
+                           f"Minęło {s['window_days']} dni od terminu ({t.strftime('%d.%m')}) i odczyty za {month} nie wyszły. "
+                           "Wyślij je ręcznie w panelu (zakładka Odczyty).", f"rd:missed:{month}", now)
         return "missed"
     pend = next((r for r in recs if r["status"] in ("pending", "failed")), None)
     if pend and pend["last_try"] and time.time() - pend["last_try"] < RETRY_S:

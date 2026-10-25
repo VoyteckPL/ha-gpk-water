@@ -11,7 +11,7 @@ from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote
 
-from . import readings, energy
+from . import readings, energy, notifications
 
 from . import ha_out, meters, state
 from .db import pdf_path
@@ -90,6 +90,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(readings.status(self.store))
             if path == "api/readings/send":
                 return self._json(readings.send_manual(self.store, self.opts, bool(body.get("force"))))
+            if path == "api/notifications/settings":
+                try:
+                    return self._json(notifications.save_settings(body))
+                except ValueError as e:
+                    return self._send(400, str(e).encode(), "text/plain; charset=utf-8")
+            if path == "api/notifications/test":
+                return self._json(dict(ok=notifications.test(self.store)))
             if path == "api/energy/rebuild":
                 return self._json(energy.import_all(self.store))
             self._send(404, b"", "text/plain")
@@ -117,7 +124,10 @@ class Handler(BaseHTTPRequestHandler):
         if path == "api/readings":
             return self._json(readings.status(self.store))
         if path == "api/readings/preview":
-            return self._json(readings.preview(self.store))
+            return self._json(readings.preview(self.store, self.opts.get("gmail_user", "")))
+        if path == "api/notifications":
+            return self._json(dict(settings=notifications.get_settings(), log=self.store.notifications(),
+                                   events={k: dict(name=v[0], desc=v[1], params=list(v[3])) for k, v in notifications.EVENTS.items()}))
         if path == "api/energy":
             return self._json(energy.LAST)
         if path == "api/meters":

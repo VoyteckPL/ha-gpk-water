@@ -1,5 +1,5 @@
 name: GPK Szemud - faktury za wodę
-version: "0.4.0"
+version: "0.5.0"
 slug: gpk_water
 description: Pobiera faktury GPK Szemud z Gmaila (IMAP), parsuje PDF-y i wystawia sensory oraz historię kosztów wody w HA.
 arch: [amd64, aarch64, armv7]

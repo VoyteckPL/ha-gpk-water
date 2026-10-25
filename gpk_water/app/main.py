@@ -6,7 +6,7 @@ import time
 
 import threading
 
-from . import energy, ha_out, mailbox, meters, metrics, readings, state, web
+from . import energy, notifications, ha_out, mailbox, meters, metrics, readings, state, web
 from .db import Store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -42,6 +42,8 @@ def run_once(o: dict, store: Store):
         ha_out.import_history(invoices)
         energy.import_all(store)
         state.update(history_imported=time.time())
+    notifications.on_new_invoices(store)
+    notifications.check_sync(store)
     failed = store.db.execute("SELECT uid, note FROM seen_mail WHERE status='failed'").fetchall()
     if failed:
         log.warning("%d maili z PDF nie sparsowano (nowy format?): %s", len(failed), failed[:5])
@@ -60,6 +62,8 @@ def meters_loop(o: dict, store: Store, every=900):
                                    o.get("mqtt_password") or None, vals, sensors=ha_out.SENSORS_EST)
                 elif res.get("error"):
                     log.warning("liczniki: %s", res["error"])
+                if res.get("daily"):
+                    notifications.check_usage(store, res["daily"])
                 if time.time() - state.STATE.get("energy_at", 0) > 21600:
                     state.update(energy_at=time.time())
                     energy.import_all(store)
@@ -72,6 +76,7 @@ def readings_loop(o, store):
     while True:
         try:
             readings.tick(store, o)
+            notifications.check_no_invoice(store)
         except Exception:  # noqa: BLE001
             log.exception("pętla odczytów")
         time.sleep(60)

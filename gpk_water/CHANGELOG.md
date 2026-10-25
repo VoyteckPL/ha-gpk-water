@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0
+- Przegląd: nowe filtry. Domyślnie bieżący rok, kliknięcie kolejnych lat włącza porównanie lat (koszt i zużycie wg miesięcy), „Wszystkie" pokazuje całą historię. Usunięto „Na 30 dni" i zakresy 12/24 mies.
+- Odczyty: odbiorcy wybierani osobno (GPK Szemud, dodatkowe adresy, kopia na konto dodatku), temat „Stan liczników wody" + adres, stany liczników z jednym miejscem po przecinku.
+- Nowa zakładka Powiadomienia: nowa faktura (kwota, termin, okres, zużycie, porównanie), zmiana cen, wysoka faktura, nota odsetkowa, nietypowe zużycie domu (wyciek lub woda poza podlicznikiem), brak faktury po odczytach, wysyłka odczytów, problemy z pocztą/PDF. Telefon przez usługę notify, cisza nocna, dziennik wysłanych.
+
 ## 0.4.0
 - Zakładka „Odczyty": automatyczna miesięczna wysyłka stanów liczników do GPK (odporna na restarty i brak sieci, ponawianie, ochrona przed dublem, kontrola błędnych odczytów, powiadomienia).
 - Panel Energia: cztery serie dzienne (zużycie i koszt, dom i ogród) - historia z faktur od 2020, dalej z wodomierzy.

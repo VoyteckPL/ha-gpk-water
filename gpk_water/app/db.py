@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import re
 import sqlite3
 
@@ -22,6 +23,9 @@ CREATE TABLE IF NOT EXISTS submissions (
   month TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL,
   created TEXT, sent_at TEXT, main TEXT, sub TEXT, to_addr TEXT,
   error TEXT, attempts INTEGER DEFAULT 0, last_try REAL, notified INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS notified (
+  key TEXT PRIMARY KEY, at REAL, kind TEXT, title TEXT, message TEXT, sent INTEGER DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS seen_mail (
   uid TEXT PRIMARY KEY,
@@ -72,6 +76,22 @@ class Store:
     def invoices_missing_pdf(self) -> list[tuple[str, str]]:
         rows = self.db.execute("SELECT number, email_uid FROM invoices WHERE email_uid IS NOT NULL").fetchall()
         return [(n, u) for n, u in rows if not os.path.exists(pdf_path(n))]
+
+    # --- dziennik powiadomień (też ochrona przed powtórkami)
+    def was_notified(self, key: str) -> bool:
+        return self.db.execute("SELECT 1 FROM notified WHERE key=?", (key,)).fetchone() is not None
+
+    def log_notification(self, key: str, kind: str, title: str, message: str, sent: bool = True):
+        self.db.execute("INSERT OR REPLACE INTO notified(key,at,kind,title,message,sent) VALUES(?,?,?,?,?,?)",
+                        (key, time.time(), kind, title, message, int(bool(sent))))
+        self.db.commit()
+
+    def notifications(self, limit: int = 40) -> list[dict]:
+        cur = self.db.execute("SELECT key,at,kind,title,message,sent FROM notified ORDER BY at DESC LIMIT ?", (limit,))
+        return [dict(zip(("key", "at", "kind", "title", "message", "sent"), r)) for r in cur.fetchall()]
+
+    def notified_count(self) -> int:
+        return self.db.execute("SELECT COUNT(*) FROM notified").fetchone()[0]
 
     # --- wysyłki odczytów do GPK
     def submissions(self, month: str | None = None) -> list[dict]:

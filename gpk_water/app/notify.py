@@ -6,12 +6,15 @@ from . import ha_out
 log = logging.getLogger("gpk.notify")
 
 
-def send(title: str, message: str, kind: str = "info", notify_service: str = "", nid: str | None = None) -> bool:
+def send(title: str, message: str, kind: str = "info", notify_service: str = "", nid: str | None = None,
+         persistent: bool = True) -> bool:
     msgs = [
         {"type": "call_service", "domain": "persistent_notification", "service": "create",
-         "service_data": {"title": title, "message": message, "notification_id": nid or f"gpk_water_{kind}"}},
+         "service_data": {"title": title, "message": message, "notification_id": (nid or f"gpk_water_{kind}").replace(":", "_")}},
         {"type": "fire_event", "event_type": "gpk_water_event", "event_data": {"kind": kind, "title": title, "message": message}},
     ]
+    if not persistent:
+        msgs.pop(0)
     svc = (notify_service or "").strip()
     if svc.startswith("notify."):
         msgs.append({"type": "call_service", "domain": "notify", "service": svc.split(".", 1)[1],

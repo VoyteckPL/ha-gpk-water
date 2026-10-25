@@ -68,7 +68,7 @@ h2{font-size:15.5px;margin:0 0 2px}
 .seg{display:inline-flex;background:var(--chip);border-radius:11px;padding:3px}
 .seg button{background:none;border:0;color:var(--mute);padding:6px 12px;border-radius:9px;font-weight:550;font-size:13.5px}
 .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
-select,input[type=search],input[list]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;min-width:0}
+select,input[type=search],input[list],input[type=text],input:not([type]),input[type=number],input[type=time]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;min-width:0}
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);border-radius:999px;padding:5px 11px;font-size:13px;cursor:pointer;user-select:none;border:1px solid transparent}
 .chip.off{opacity:.45}.chip.on{border-color:var(--accent);color:var(--accent);font-weight:600}
 .chip i{width:10px;height:10px;border-radius:3px;display:inline-block}
@@ -94,6 +94,10 @@ pre{background:var(--chip);border-radius:12px;padding:12px;overflow:auto;font-si
 .insight:last-child{border:0}
 .insight b{min-width:0}
 .hide{display:none!important}
+input{box-sizing:border-box;max-width:100%}.form input[type=time]{width:112px}
+.form{display:grid;grid-template-columns:minmax(120px,170px) 1fr;gap:10px 12px;align-items:start}.form>label{padding-top:7px;color:var(--mute);font-size:14px}
+.chk{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink)}.ev{padding:6px 0;border-top:1px solid var(--line)}
+@media(max-width:560px){.form{grid-template-columns:1fr}.form>label{padding-top:0}}
 @media(max-width:560px){.kpi .val{font-size:22px}main{padding:12px}.chartbox{height:260px}}
 </style>
 </head>
@@ -109,6 +113,7 @@ pre{background:var(--chip);border-radius:12px;padding:12px;overflow:auto;font-si
     <button data-t="over" class="on">Przegląd</button>
     <button data-t="met">Liczniki</button>
     <button data-t="rd">Odczyty</button>
+    <button data-t="nt">Powiadomienia</button>
     <button data-t="inv">Faktury</button>
     <button data-t="ent">Encje HA</button>
     <button data-t="stat">Status</button>
@@ -118,6 +123,7 @@ pre{background:var(--chip);border-radius:12px;padding:12px;overflow:auto;font-si
 <section id="t-over"></section>
 <section id="t-met" class="hide"></section>
 <section id="t-rd" class="hide"></section>
+<section id="t-nt" class="hide"></section>
 <section id="t-inv" class="hide"></section>
 <section id="t-ent" class="hide"></section>
 <section id="t-stat" class="hide"></section>
@@ -135,7 +141,7 @@ const monthShort = t => new Date(t).toLocaleDateString("pl-PL",{month:"short",ye
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
 let DATA=null, INV=[], ENT=null;
-const F = {range:"all", year:"all", home:true, garden:true, norm:false};
+const F = {years:null, all:false, home:true, garden:true};  // years: Set wybranych lat (domyślnie najnowszy)
 const charts = {};
 
 // ---------- pochodne ----------
@@ -155,13 +161,22 @@ function enrich(i){
   return i;
 }
 function filtered(){
-  let r = INV.slice();
-  if(F.range!=="all" && F.range!=="year"){
-    const last = Math.max(...INV.map(i=>i.t)), cut = last - (+F.range)*30.4375*864e5;
-    r = r.filter(i=>i.t>=cut);
-  }
-  if(F.range==="year" && F.year!=="all") r = r.filter(i=>i.year==F.year);
-  return r;
+  if(F.all||!F.years) return INV.slice();
+  return INV.filter(i=>F.years.has(i.year));
+}
+const compareMode=()=>!F.all&&F.years&&F.years.size>1;
+const YCOL=["--c-home","--c-garden","--c-sewage","--c-cost","--c-avg","--c-est","--c-total"];
+// przypisanie kosztu i zużycia do miesięcy kalendarzowych wg okresu rozliczeniowego
+function monthly(){
+  const out={};
+  INV.forEach(i=>{
+    const a=D(i.period_start)+864e5,b=D(i.period_end),n=Math.max(Math.round((b-a)/864e5)+1,1);
+    const homeC=i.gross_water_home+i.gross_sewage+i.gross_abo,gardC=i.gross_water_garden+(i.gross_other||0);
+    for(let t=a;t<=b;t+=864e5){const d=new Date(t),y=d.getFullYear(),m=d.getMonth();
+      const o=(out[y]=out[y]||Array.from({length:12},()=>({home:0,garden:0,homeC:0,gardC:0})))[m];
+      o.home+=i.water_home_m3/n;o.garden+=i.water_garden_m3/n;o.homeC+=homeC/n;o.gardC+=gardC/n}
+  });
+  return out;
 }
 function linreg(pts){ // [{x,y}] -> {a,b}
   const n=pts.length; if(n<2) return null;
@@ -196,15 +211,33 @@ function mk(id,cfg){
 function ds(label,color,data,extra={}){return Object.assign({label,data,borderColor:color,backgroundColor:color+"33",borderWidth:2.2,pointRadius:2.5,pointHoverRadius:5,tension:0,cubicInterpolationMode:'monotone'},extra)}
 const Y = (label,unit)=>({title:{display:true,text:label,color:css("--mute")},ticks:{color:css("--mute"),callback:v=>nf(v,Number.isInteger(v)?0:(unit==="m3"?2:1))},grid:{color:css("--line")+"88"}});
 
+function drawCompare(){
+  const M=monthly(),ys=[...F.years].sort((a,b)=>a-b),labels=["Sty","Lut","Mar","Kwi","Maj","Cze","Lip","Sie","Wrz","Paź","Lis","Gru"];
+  const nowM=new Date(),partial=y=>y===nowM.getFullYear();
+  const val=(o,kind)=>kind==="cost"?(F.home?o.homeC:0)+(F.garden?o.gardC:0):(F.home?o.home:0)+(F.garden?o.garden:0);
+  [["c1","cost","zł / miesiąc"],["c4","m3","m³ / miesiąc"]].forEach(([id,kind,yl])=>{
+    const sets=ys.map((y,k)=>{const arr=(M[y]||[]);const data=arr.map((o,m)=>(partial(y)&&m>nowM.getMonth())||(!o.home&&!o.garden&&!o.homeC)?null:+val(o,kind).toFixed(2));
+      const tot=data.reduce((s,v)=>s+(v||0),0);
+      return {label:`${y} · ${kind==="cost"?nf(tot,0)+" zł":nf(tot,1)+" m³"}`,data,backgroundColor:css(YCOL[k%YCOL.length]),borderRadius:3}});
+    const o=chartBase();o.scales.y=Y(yl,kind==="m3"?"m3":"");o.scales.x={ticks:{color:css("--mute")},grid:{display:false}};
+    o.plugins.tooltip.callbacks={label:c=>`${c.dataset.label.split(" ·")[0]}: ${kind==="cost"?zl(c.parsed.y):nf(c.parsed.y,1)+" m³"}`};
+    mk(id,{type:"bar",data:{labels,datasets:sets},options:o});
+  });
+}
 function drawCharts(){
   const R = filtered(); if(!R.length) return;
+  $("#h-cost").textContent=compareMode()?"Koszt wg miesięcy":"Koszt faktur";
+  $("#h-use").textContent=compareMode()?"Zużycie wg miesięcy":"Zużycie wody";
+  $("#t-cost").textContent=compareMode()?"Porównanie wybranych lat. Koszt i zużycie przypisane do miesięcy wg okresu rozliczeniowego; w nawiasie suma roku (bieżący rok - do dziś).":"Kliknij słupek, aby otworzyć fakturę.";
+  $("#t-use").textContent=compareMode()?"Dom i/lub ogród wg przełączników powyżej.":"Dom i ogród, m³ na fakturę. Kliknij słupek, aby otworzyć fakturę.";
+  if(compareMode()){drawCompare();drawPrices(R,"c3");return}
   // koszt wg składników
   {
-    const f = i => F.norm && i.okDays ? 30.4375/i.days : 1;
+    const f = i => 1;
     const parts=[["Woda – dom","gross_water_home","--c-home",F.home],["Woda – ogród","gross_water_garden","--c-garden",F.garden],
                  ["Ścieki","gross_sewage","--c-sewage",true],["Abonament","gross_abo","--c-abo",true],["Inne","gross_other","--c-other",true]];
     const dsets=parts.filter(p=>p[3]&&R.some(i=>i[p[1]]>0)).map(p=>({label:p[0],data:R.map(i=>+(i[p[1]]*f(i)).toFixed(2)),backgroundColor:css(p[2]),stack:"s",borderRadius:2}));
-    const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y(F.norm?"zł / 30 dni":"zł / faktura")};
+    const o=chartBase(); o.scales.x.stacked=true; o.scales.y={stacked:true,...Y("zł / faktura")};
     o.plugins.tooltip.callbacks={footer:items=>"Razem: "+zl(items.reduce((s,x)=>s+x.parsed.y,0)),title:items=>fmtD(R[items[0].dataIndex].issue_date)};
     o.onClick=(e,els)=>{if(els.length)openInvoice(R[els[0].index].number)}; o.onHover=(e,els)=>{e.native.target.style.cursor=els.length?"pointer":"default"};
     mk("c1",{type:"bar",data:{labels:R.map(i=>monthShort(i.t)),datasets:dsets},options:o});
@@ -259,35 +292,38 @@ function renderOverview(){
     ${kpi("Zużycie roczne (dom)",nf(yr,0),"m³","≈ "+nf(yr*1000/365,0)+" l/dobę","--c-garden","🌿","usage")}
   </div>
   <div class="filters" style="margin-top:14px">
-    <div class="seg" id="frange"><button data-r="all">Wszystko</button><button data-r="12">12 mies.</button><button data-r="24">24 mies.</button><button data-r="year">Rok</button></div>
-    <select id="fyear" class="${F.range==="year"?"":"hide"}">${years.map(y=>`<option value="${y}">${y}</option>`).join("")}</select>
+    <div class="seg" id="fyears">${years.slice().reverse().map(y=>`<button data-y="${y}">${y}</button>`).join("")}<button data-y="all">Wszystkie</button></div>
     <span class="chip" id="fhome"><i style="background:var(--c-home)"></i>Dom</span>
     <span class="chip" id="fgarden"><i style="background:var(--c-garden)"></i>Ogród</span>
-    <span class="chip" id="fnorm" title="Przelicza koszty na 30 dni, żeby porównać okresy różnej długości">Na 30 dni</span>
+    <span class="hint" id="fhint" style="margin:0"></span>
   </div>
   <div class="grid cols2">
-    <div class="card cc" id="k-cost" style="--kc:var(--c-total)"><h2>Koszt faktur</h2><p class="hint">Kliknij słupek, aby otworzyć fakturę.</p><div class="chartbox"><canvas id="c1"></canvas></div></div>
-    <div class="card cc" id="k-usage" style="--kc:var(--c-garden)"><h2>Zużycie wody</h2><p class="hint">Dom i ogród, m³ na fakturę. Kliknij słupek, aby otworzyć fakturę.</p><div class="chartbox"><canvas id="c4"></canvas></div></div>
+    <div class="card cc" id="k-cost" style="--kc:var(--c-total)"><h2 id="h-cost">Koszt faktur</h2><p class="hint" id="t-cost">Kliknij słupek, aby otworzyć fakturę.</p><div class="chartbox"><canvas id="c1"></canvas></div></div>
+    <div class="card cc" id="k-usage" style="--kc:var(--c-garden)"><h2 id="h-use">Zużycie wody</h2><p class="hint" id="t-use">Dom i ogród, m³ na fakturę. Kliknij słupek, aby otworzyć fakturę.</p><div class="chartbox"><canvas id="c4"></canvas></div></div>
     <div class="card cc" id="k-prices" style="--kc:var(--c-sewage)"><h2>Ceny za m³ (brutto)</h2><p class="hint" id="c3note"></p><div class="chartbox"><canvas id="c3"></canvas></div></div>
     <div class="card cc" id="k-years" style="--kc:var(--c-cost)"><h2>Rok po roku</h2><p class="hint">Kliknij rok, aby zobaczyć jego faktury.</p><div class="tscroll"><table><thead><tr><th>Rok</th><th>Faktur</th><th>m³ dom</th><th>m³ ogród</th><th>Koszt zł</th><th>zł/m³</th></tr></thead><tbody>${yrows}</tbody></table></div></div>
   </div>`;
+  if(!F.years) F.years=new Set([years[0]]);
   const sync=()=>{
-    document.querySelectorAll("#frange button").forEach(b=>b.classList.toggle("on",b.dataset.r===F.range));
-    [["#fhome","home"],["#fgarden","garden"],["#fnorm","norm"]].forEach(([id,k])=>{$(id).classList.toggle("off",!F[k]);$(id).classList.toggle("on",!!F[k])});
-    $("#fyear").classList.toggle("hide",F.range!=="year"); $("#fyear").value=F.year==="all"?years[0]:F.year;
+    document.querySelectorAll("#fyears button").forEach(b=>b.classList.toggle("on",b.dataset.y==="all"?F.all:(!F.all&&F.years.has(+b.dataset.y))));
+    [["#fhome","home"],["#fgarden","garden"]].forEach(([id,k])=>{$(id).classList.toggle("off",!F[k]);$(id).classList.toggle("on",!!F[k])});
+    $("#fhint").textContent=F.all?"wszystkie faktury po kolei":compareMode()?"porównanie lat":"kliknij kolejny rok, aby porównać";
   };
-  $("#frange").onclick=e=>{const r=e.target.dataset.r;if(!r)return;F.range=r;if(r==="year"&&F.year==="all")F.year=years[0];sync();drawCharts()};
-  $("#fyear").onchange=e=>{F.year=e.target.value;drawCharts()};
-  $("#fhome").onclick=()=>{F.home=!F.home;sync();drawCharts()};
-  $("#fgarden").onclick=()=>{F.garden=!F.garden;sync();drawCharts()};
-  $("#fnorm").onclick=()=>{F.norm=!F.norm;sync();drawCharts()};
+  $("#fyears").onclick=e=>{const y=e.target.dataset.y;if(!y)return;
+    if(y==="all"){F.all=true}
+    else{ if(F.all){F.all=false;F.years=new Set([+y])}
+      else if(F.years.has(+y)){if(F.years.size>1)F.years.delete(+y)}
+      else F.years.add(+y)}
+    sync();drawCharts()};
+  $("#fhome").onclick=()=>{if(F.home&&!F.garden)return;F.home=!F.home;sync();drawCharts()};
+  $("#fgarden").onclick=()=>{if(F.garden&&!F.home)return;F.garden=!F.garden;sync();drawCharts()};
   sync(); drawCharts();
   const go=id=>{const el=document.getElementById(id);if(!el)return;el.scrollIntoView({behavior:"smooth",block:"center"});el.classList.remove("flash");void el.offsetWidth;el.classList.add("flash")};
   $("#t-over").querySelectorAll(".kpi").forEach(k=>{const run=(ev)=>{const a=(ev&&ev.target&&ev.target.closest&&ev.target.closest(".r[data-act]")||k).dataset.act;
       if(a==="last")openInvoice(L.number);
       else if(a==="prices")go("k-prices");
       else if(a==="usage")go("k-usage");
-      else if(a==="cost"){F.norm=true;sync();drawCharts();go("k-cost")}
+      else if(a==="cost"){go("k-cost")}
       else if(a==="perm3"){SORT={k:"perM3",asc:false};YF="all";Q="";renderInv();show("inv")}};
     k.onclick=run;k.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();run(e)}}});
   $("#k-years").onclick=e=>{const tr=e.target.closest("tr.yr");if(!tr)return;YF=tr.dataset.y;Q="";SORT={k:"t",asc:false};renderInv();show("inv")};
@@ -489,6 +525,32 @@ function renderAll(){
   show(cur,true);
 }
 
+
+const EV_PARAM={percent:["próg:","% ponad średnią"],factor:["próg:","× typowy dzień"],min_m3:["i co najmniej","m³"],days:["po","dniach"]};
+async function renderNotif(){
+  const el=$("#t-nt"); let R;
+  try{R=await (await fetch("api/notifications")).json()}catch(e){el.innerHTML='<div class="card">Brak połączenia z dodatkiem</div>';return}
+  const s=R.settings;
+  const rows=Object.entries(R.events).map(([k,e])=>{const v=s.events[k];
+    const pr=e.params.map(p=>`<span class="hint" style="margin:0">${EV_PARAM[p][0]} <input type="number" step="any" data-ev="${k}" data-p="${p}" value="${v[p]}" style="width:70px"> ${EV_PARAM[p][1]}</span>`).join(" ");
+    return `<div class="ev"><label class="chk"><input type="checkbox" data-ev="${k}" data-en="1" ${v.enabled?"checked":""}> <b>${esc(e.name)}</b></label><div class="hint" style="margin:2px 0 4px 26px">${esc(e.desc)} ${pr}</div></div>`}).join("");
+  const log=R.log.map(l=>`<tr><td>${esc(new Date(l.at*1000).toLocaleString("pl-PL",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))}</td><td>${esc(R.events[l.kind]?R.events[l.kind].name:l.kind)}</td><td>${esc(l.title)}${l.message?'<div class="hint" style="margin:2px 0 0;white-space:pre-line">'+esc(l.message)+"</div>":""}</td></tr>`).filter((_,i)=>R.log[i].kind!=="seed").join("");
+  el.innerHTML=`<div class="card"><h2>Powiadomienia</h2>
+  <p class="hint">Dodatek daje znać w HA (powiadomienie trwałe), opcjonalnie na telefon oraz zdarzeniem <code>gpk_water_event</code> dla Twoich automatyzacji.</p>
+  <div class="form"><label>Telefon (usługa notify)</label><div><input id="n_svc" value="${esc(s.notify_service)}" placeholder="notify.mobile_app_twoj_telefon" style="width:100%"></div>
+  <label>Powiadomienie w HA</label><div><input type="checkbox" id="n_per" ${s.persistent?"checked":""}></div>
+  <label>Cisza nocna</label><div><label class="chk"><input type="checkbox" id="n_q" ${s.quiet?"checked":""}> bez telefonu od <input type="time" id="n_qf" value="${esc(s.quiet_from)}"> do <input type="time" id="n_qt" value="${esc(s.quiet_to)}"></label></div></div>
+  <h2 style="margin-top:16px">Kiedy dać znać</h2>${rows}
+  <p style="margin-top:12px"><button class="chip" id="n_save">Zapisz</button> <button class="chip" id="n_test">Wyślij próbne</button> <span class="hint" id="n_msg" style="margin-left:8px"></span></p></div>
+  <div class="card" style="margin-top:12px"><h2>Ostatnio wysłane</h2><div class="tscroll"><table><tr><th class="l">Kiedy</th><th class="l">Rodzaj</th><th class="l">Treść</th></tr>${log||'<tr><td colspan=3>Jeszcze nic</td></tr>'}</table></div></div>`;
+  const msg=t=>$("#n_msg").textContent=t;
+  $("#n_save").onclick=async()=>{
+    const ev={}; el.querySelectorAll("[data-ev]").forEach(x=>{const k=x.dataset.ev;ev[k]=ev[k]||{};if(x.dataset.en)ev[k].enabled=x.checked;else ev[k][x.dataset.p]=x.value});
+    const b={notify_service:$("#n_svc").value,persistent:$("#n_per").checked,quiet:$("#n_q").checked,quiet_from:$("#n_qf").value,quiet_to:$("#n_qt").value,events:ev};
+    const r=await fetch("api/notifications/settings",{method:"POST",body:JSON.stringify(b)});
+    msg(r.ok?"Zapisano":await r.text())};
+  $("#n_test").onclick=async()=>{msg("Wysyłam…");const r=await (await fetch("api/notifications/test",{method:"POST",body:"{}"})).json();msg(r.ok?"Wysłano - sprawdź HA i telefon":"Nie udało się połączyć z HA")};
+}
 const ST_PL={sent:"wysłano",failed:"błąd, ponawiam",pending:"w toku",missed:"nie wysłano"};
 async function renderReadings(){
   const el=$("#t-rd"); let R;
@@ -497,27 +559,32 @@ async function renderReadings(){
   const hist=R.history.map(h=>`<tr><td>${esc(h.month)}</td><td>${h.kind==="auto"?"auto":"ręcznie"}</td><td>${esc(ST_PL[h.status]||h.status)}</td><td>${esc(h.main||"–")} / ${esc(h.sub||"–")}</td><td>${esc((h.sent_at||h.created||"").replace("T"," ").slice(0,16))}</td><td>${esc(h.error||"")}</td></tr>`).join("");
   el.innerHTML=`<div class="card"><h2>Automatyczna wysyłka stanów liczników</h2>
   <p class="hint">${s.enabled?(R.sent_this_month?"Za "+R.month+" już wysłano. ":"")+"Następny termin: "+esc(R.next_due.replace("T"," ")):"Wyłączona - możesz zostawić swoją automatyzację, dopóki tego nie włączysz."}</p>
-  <div class="grid2" style="display:grid;grid-template-columns:auto 1fr;gap:8px 12px;align-items:center">
-  <div>Włączona</div><div><input type="checkbox" id="r_en" ${s.enabled?"checked":""}></div>
-  <div>Dzień miesiąca</div><div><input type="number" id="r_day" min="1" max="28" value="${s.day}" style="width:80px"></div>
-  <div>Godzina</div><div><input type="time" id="r_time" value="${esc(s.time)}"></div>
-  <div>Ponawiaj przez (dni)</div><div><input type="number" id="r_win" min="1" max="20" value="${s.window_days}" style="width:80px"></div>
-  <div>Do</div><div><input id="r_to" value="${esc(s.to)}" style="width:100%"></div>
-  <div>Kopia do mnie</div><div><input type="checkbox" id="r_cc" ${s.cc_self?"checked":""}></div>
-  <div>Temat maila</div><div><input id="r_sub" value="${esc(s.subject)}" style="width:100%" placeholder="np. Stany liczników + adres"></div>
-  <div>Początek treści</div><div><input id="r_intro" value="${esc(s.intro)}" style="width:100%"></div>
-  <div>Powiadomienie na telefon</div><div><input id="r_ns" value="${esc(s.notify_service)}" placeholder="notify.mobile_app_..." style="width:100%"></div>
-  <div>Blokuj błędne odczyty</div><div><input type="checkbox" id="r_san" ${s.sanity?"checked":""}></div></div>
+  <div class="form">
+  <label>Włączona</label><div><input type="checkbox" id="r_en" ${s.enabled?"checked":""}></div>
+  <label>Dzień miesiąca</label><div><input type="number" id="r_day" min="1" max="28" value="${s.day}" style="width:80px"></div>
+  <label>Godzina</label><div><input type="time" id="r_time" value="${esc(s.time)}"></div>
+  <label>Ponawiaj przez (dni)</label><div><input type="number" id="r_win" min="1" max="20" value="${s.window_days}" style="width:80px"></div>
+  <label>Odbiorcy</label><div>
+    <label class="chk"><input type="checkbox" id="r_gpk" ${s.to_gpk?"checked":""}> GPK Szemud (faktury@gpkszemud.pl)</label>
+    <input id="r_extra" value="${esc(s.extra)}" placeholder="Dodatkowe adresy, po przecinku (np. Twój, żona)" style="width:100%;margin-top:6px">
+    <label class="chk"><input type="checkbox" id="r_cc" ${s.cc_self?"checked":""}> Wyślij też kopię na konto Gmail dodatku</label></div>
+  <label>Temat</label><div><input id="r_sub" value="${esc(s.subject)}" style="width:100%"></div>
+  <label>Adres w temacie</label><div><input id="r_addr" value="${esc(s.address)}" placeholder="np. Bojano ul. ... (dopisywane do tematu)" style="width:100%">
+    <div class="hint" style="margin:4px 0 0" id="r_subj_prev"></div></div>
+  <label>Początek treści</label><div><input id="r_intro" value="${esc(s.intro)}" style="width:100%"></div>
+  <label>Blokuj błędne odczyty</label><div><input type="checkbox" id="r_san" ${s.sanity?"checked":""}></div></div>
   <p style="margin-top:12px"><button class="chip" id="r_save">Zapisz</button> <button class="chip" id="r_prev">Podgląd</button> <button class="chip" id="r_send">Wyślij teraz</button></p>
   <pre id="r_out" class="hint" style="white-space:pre-wrap"></pre></div>
   <div class="card" style="margin-top:12px"><h2>Historia wysyłek</h2><div style="overflow:auto"><table ><tr><th>Miesiąc</th><th>Tryb</th><th>Status</th><th>Główny / ogród</th><th>Kiedy</th><th>Uwagi</th></tr>${hist||'<tr><td colspan=6>Brak</td></tr>'}</table></div></div>`;
   const out=t=>$("#r_out").textContent=t;
+  const sp=()=>$("#r_subj_prev").textContent="Temat maila: "+($("#r_sub").value+" "+$("#r_addr").value).trim();
+  $("#r_sub").oninput=sp;$("#r_addr").oninput=sp;sp();
   $("#r_save").onclick=async()=>{
-    const b={enabled:$("#r_en").checked,day:+$("#r_day").value,time:$("#r_time").value,window_days:+$("#r_win").value,to:$("#r_to").value,cc_self:$("#r_cc").checked,subject:$("#r_sub").value,intro:$("#r_intro").value,notify_service:$("#r_ns").value,sanity:$("#r_san").checked};
+    const b={enabled:$("#r_en").checked,day:+$("#r_day").value,time:$("#r_time").value,window_days:+$("#r_win").value,to_gpk:$("#r_gpk").checked,extra:$("#r_extra").value,cc_self:$("#r_cc").checked,subject:$("#r_sub").value,address:$("#r_addr").value,intro:$("#r_intro").value,sanity:$("#r_san").checked};
     const r=await fetch("api/readings/settings",{method:"POST",body:JSON.stringify(b)});
     if(!r.ok){out(await r.text());return} renderReadings()};
   $("#r_prev").onclick=async()=>{const p=await (await fetch("api/readings/preview")).json();
-    out(p.ok?`Do: ${p.to.join(", ")}\nTemat: ${p.subject}\n\n${p.body}${p.warning?"\nUWAGA: "+p.warning:""}`:"Nie można odczytać liczników: "+p.error)};
+    out(p.ok?`Do: ${p.to.join(", ")}${p.cc&&p.cc.length?"\nKopia: "+p.cc.join(", "):""}\nTemat: ${p.subject}\n\n${p.body}${p.warning?"\nUWAGA: "+p.warning:""}`:"Nie można odczytać liczników: "+p.error)};
   $("#r_send").onclick=async()=>{
     if(!confirm("Wysłać stany liczników do GPK teraz?"))return;
     out("Wysyłam…");
@@ -529,11 +596,12 @@ async function renderReadings(){
 let cur="over";
 function show(t,keep){
   cur=t; document.querySelectorAll("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
-  ["over","met","rd","inv","ent","stat"].forEach(x=>$("#t-"+x).classList.toggle("hide",x!==t));
+  ["over","met","rd","nt","inv","ent","stat"].forEach(x=>$("#t-"+x).classList.toggle("hide",x!==t));
   if(t==="over") requestAnimationFrame(drawCharts);
   if(t==="ent"&&!keep) renderEnt();
   if(t==="met"&&!keep) renderMeters();
   if(t==="rd"&&!keep) renderReadings();
+  if(t==="nt"&&!keep) renderNotif();
 }
 $("#nav").onclick=e=>{const t=e.target.dataset.t;if(t)show(t)};
 async function load(){
