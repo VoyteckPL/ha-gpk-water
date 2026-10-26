@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.2
+- MQTT: gdy w konfiguracji nie ma loginu, dodatek bierze dane brokera (host, login, hasło) od Supervisora - Mosquitto zwykle odrzuca anonimowe połączenia, przez co encje nie powstawały („connection was lost"). Odrzucone logowanie jest teraz zgłaszane wprost.
+
 ## 0.7.1
 - MQTT: dodatek czeka na dostarczenie wszystkich wiadomości do brokera przed rozłączeniem (wcześniej encje mogły nie powstawać w HA) i zgłasza błąd, gdy się nie uda.
 

@@ -1,5 +1,6 @@
 """Wyjście do HA: sensory przez MQTT discovery + import historii do statystyk długoterminowych."""
 import json
+import time
 import logging
 import os
 from datetime import datetime, timezone
@@ -34,12 +35,41 @@ SENSORS = [
 ]
 
 
+def _supervisor_mqtt():
+    """Dane brokera MQTT od Supervisora (usługa mqtt:want) - login i hasło generuje HA, nie trzeba ich wpisywać."""
+    try:
+        import urllib.request
+        tok = _token()
+        if not tok:
+            return None
+        req = urllib.request.Request("http://supervisor/services/mqtt", headers={"Authorization": "Bearer " + tok})
+        d = json.load(urllib.request.urlopen(req, timeout=8)).get("data") or {}
+        return d if d.get("host") else None
+    except Exception as e:  # noqa: BLE001
+        log.warning("nie udało się pobrać danych MQTT od Supervisora: %s", e)
+        return None
+
+
 def publish(host, port, user, password, values: dict, prefix="homeassistant", sensors=None):
+    if not user:  # brak loginu w konfiguracji: użyj danych brokera z HA (Mosquitto zwykle nie przyjmuje anonimów)
+        sv = _supervisor_mqtt()
+        if sv:
+            host, port, user, password = sv["host"], int(sv.get("port") or port), sv.get("username"), sv.get("password")
+            log.info("MQTT: dane brokera z Supervisora (%s:%s, użytkownik %s)", host, port, user)
     c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2) if hasattr(mqtt, "CallbackAPIVersion") else mqtt.Client()
     if user:
         c.username_pw_set(user, password)
+    rc = {}
+    c.on_connect = lambda cl, ud, fl, code, *a: rc.update(code=code)
     c.connect(host, port, 30)
     c.loop_start()
+    for _ in range(100):  # czekaj na CONNACK (odrzucone logowanie inaczej gubi wiadomości po cichu)
+        if "code" in rc:
+            break
+        time.sleep(0.1)
+    if "code" not in rc or getattr(rc["code"], "is_failure", rc["code"] != 0):
+        c.loop_stop()
+        raise RuntimeError(f"MQTT: broker {host}:{port} odrzucił połączenie ({rc.get('code', 'brak odpowiedzi')}). Sprawdź login i hasło brokera.")
     infos = []
     _pub = c.publish
 
