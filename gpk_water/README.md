@@ -1,4 +1,4 @@
-# GPK Szemud - faktury za wodę (add-on HA)
+# Energia Woda (add-on HA, faktury GPK Szemud za wodę)
 
 Czyta maile od `faktury@gpkszemud.pl` z Gmaila (IMAP), parsuje PDF-y (`pdftotext`), zapisuje do SQLite
 (`/data/invoices.db`), wystawia sensory przez MQTT discovery i importuje historię do statystyk długoterminowych
@@ -10,7 +10,7 @@ Czyta maile od `faktury@gpkszemud.pl` z Gmaila (IMAP), parsuje PDF-y (`pdftotext
 3. Opcje add-onu: `gmail_user`, `gmail_app_password`, dane MQTT (dla add-onu Mosquitto zwykle user/hasło z HA).
 4. Start. Przy pierwszym uruchomieniu przejdzie po wszystkich mailach od 2020 r.
 
-## Panel „Woda GPK” (pasek boczny HA)
+## Panel „Energia Woda” (pasek boczny HA)
 Przegląd (6 kafelków, filtry, wykresy: koszt, zużycie, ceny, tabela rok po roku),
 Faktury (sortowanie, szukanie, szczegóły, PDF, CSV), Encje HA (prawdziwe entity_id z rejestru HA, karta Lovelace) i Status (synchronizacja, nieodczytane PDF-y).
 

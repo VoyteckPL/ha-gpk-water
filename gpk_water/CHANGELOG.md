@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.3
+- Nazwa dodatku i tytuł w pasku bocznym: **Energia Woda** (żeby była obok „Energia Gazomierz” w kolejności alfabetycznej). Dodatek nadal obsługuje faktury GPK Szemud.
+
 ## 0.7.2
 - MQTT: gdy w konfiguracji nie ma loginu, dodatek bierze dane brokera (host, login, hasło) od Supervisora - Mosquitto zwykle odrzuca anonimowe połączenia, przez co encje nie powstawały („connection was lost"). Odrzucone logowanie jest teraz zgłaszane wprost.
 

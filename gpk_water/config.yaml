@@ -1,5 +1,5 @@
-name: GPK Szemud - faktury za wodę
-version: "0.7.2"
+name: Energia Woda
+version: "0.7.3"
 slug: gpk_water
 description: Pobiera faktury GPK Szemud z Gmaila (IMAP), parsuje PDF-y i wystawia sensory oraz historię kosztów wody w HA.
 arch: [amd64, aarch64, armv7]
@@ -37,6 +37,6 @@ map:
 ingress: true
 ingress_port: 8099
 panel_icon: mdi:water
-panel_title: Woda GPK
+panel_title: Energia Woda
 homeassistant_api: true
 hassio_api: true
