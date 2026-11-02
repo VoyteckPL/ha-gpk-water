@@ -121,15 +121,20 @@ def import_all(store, force_clear_old: bool = False) -> dict:
         msgs.append({"type": "recorder/import_statistics", "metadata": _meta(sid, name, unit, uclass),
                      "stats": to_rows(daily, key, tz)})
         plan.append(sid)
-    res = ha_out.ws_batch(msgs)
+    errs = []
+    res = ha_out.ws_batch(msgs, errs)
     if res is None:
         LAST["error"] = ha_out.LAST_WS_ERROR or "brak połączenia z HA"
         return LAST
-    if any(r is None for r in res):  # starszy HA może nie znać unit_class - ponów bez niego
+    # UWAGA: udane recorder/import_statistics i clear_statistics zwracają result=null, więc o błędzie
+    # decyduje lista errs, a nie wartość None w res.
+    if errs:  # starszy HA może nie znać mean_type/unit_class - ponów bez unit_class
+        log.warning("import statystyk odrzucony (%s), ponawiam bez unit_class", "; ".join(errs))
+        errs2 = []
         res2 = ha_out.ws_batch([{"type": "recorder/import_statistics", "metadata": _meta(sid, name, unit, uclass, False),
-                                 "stats": to_rows(daily, key, tz)} for sid, name, unit, uclass, key in SERIES])
-        if res2 is None or any(r is None for r in res2):
-            LAST["error"] = "HA odrzuciło import statystyk (recorder/import_statistics)"
+                                 "stats": to_rows(daily, key, tz)} for sid, name, unit, uclass, key in SERIES], errs2)
+        if res2 is None or errs2:
+            LAST["error"] = "HA odrzuciło import statystyk (recorder/import_statistics): " + "; ".join(errs2)
             return LAST
     if "clear" in plan:
         d = meters._read_all()

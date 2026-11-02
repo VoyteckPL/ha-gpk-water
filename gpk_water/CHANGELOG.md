@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.5
+- Import statystyk do panelu Energia: udany import (HA zwraca wtedy `result: null`) był błędnie uznawany za nieudany, więc za każdym razem szedł drugi raz bez `unit_class`. Teraz o błędzie decyduje odpowiedź HA, a ponowienie bez `unit_class` robi się tylko przy faktycznym odrzuceniu. Znika to ostrzeżenie „without specifying unit_class” z logu HA.
+
 ## 0.7.4
 - Import statystyk (`recorder/import_statistics`) wysyła teraz `mean_type` i `unit_class` w metadanych. Bez tego HA Core 2026.11 przestaje przyjmować takie importy, a ostrzeżenie „called without specifying mean_type/unit_class” znika z logu.
 
