@@ -103,7 +103,8 @@ def main():
             log.exception("cykl nieudany, spróbuję ponownie za %d h", interval // 3600)
         first = False
         state.update(next_run=time.time() + interval)
-        time.sleep(interval)
+        state.SYNC_NOW.wait(interval)
+        state.SYNC_NOW.clear()
 
 
 if __name__ == "__main__":

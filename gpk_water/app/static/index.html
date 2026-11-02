@@ -682,7 +682,12 @@ async function load(){
   renderAll();
   if(DATA.open_tab) show(DATA.open_tab);
 }
-$("#refresh").onclick=()=>{ENT=null;load()};
+$("#refresh").onclick=async()=>{ENT=null;const b=$("#refresh");b.disabled=true;b.textContent="…";
+  const before=(DATA&&DATA.status&&DATA.status.last_run)||0;
+  try{await fetch("api/sync",{method:"POST",body:"{}"})}catch(e){}
+  for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,1500));try{const d=await (await fetch("api/data")).json();
+    if((d.status.last_run||0)>before&&(d.status.last_ok>=d.status.last_run||d.status.last_error))break}catch(e){}}
+  b.disabled=false;b.textContent="⟳";load()};
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change",()=>{if(DATA&&INV.length)drawCharts()});
 Chart.defaults.font.family='system-ui,-apple-system,"Segoe UI",Roboto,sans-serif';
 load(); setInterval(()=>{if(document.visibilityState==="visible")load()},300000);

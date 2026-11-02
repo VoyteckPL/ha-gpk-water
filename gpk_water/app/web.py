@@ -97,6 +97,9 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(400, str(e).encode(), "text/plain; charset=utf-8")
             if path == "api/notifications/test":
                 return self._json(notifications.test(self.store, body.get("notify_services"), body.get("kind")))
+            if path == "api/sync":
+                state.SYNC_NOW.set()
+                return self._json({"ok": True})
             if path == "api/energy/rebuild":
                 return self._json(energy.import_all(self.store))
             self._send(404, b"", "text/plain")

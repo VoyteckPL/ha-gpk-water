@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.6
+- Przycisk ⟳ w nagłówku naprawdę uruchamia synchronizację z pocztą (wcześniej tylko przeładowywał widok) i czeka na wynik.
+
 ## 0.7.5
 - Import statystyk do panelu Energia: udany import (HA zwraca wtedy `result: null`) był błędnie uznawany za nieudany, więc za każdym razem szedł drugi raz bez `unit_class`. Teraz o błędzie decyduje odpowiedź HA, a ponowienie bez `unit_class` robi się tylko przy faktycznym odrzuceniu. Znika to ostrzeżenie „without specifying unit_class” z logu HA.
 

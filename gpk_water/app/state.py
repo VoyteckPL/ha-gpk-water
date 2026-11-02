@@ -30,3 +30,7 @@ def version() -> str:
         except OSError:
             pass
     return "?"
+
+
+import threading as _th
+SYNC_NOW = _th.Event()  # ustawiane przez panel (przycisk odśwież), budzi pętlę synchronizacji
