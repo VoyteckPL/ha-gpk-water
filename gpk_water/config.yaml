@@ -1,5 +1,5 @@
 name: Energia Woda
-version: "0.7.4"
+version: "0.7.5"
 slug: gpk_water
 description: Pobiera faktury GPK Szemud z Gmaila (IMAP), parsuje PDF-y i wystawia sensory oraz historię kosztów wody w HA.
 arch: [amd64, aarch64, armv7]
