@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.4
+- Import statystyk (`recorder/import_statistics`) wysyła teraz `mean_type` i `unit_class` w metadanych. Bez tego HA Core 2026.11 przestaje przyjmować takie importy, a ostrzeżenie „called without specifying mean_type/unit_class” znika z logu.
+
 ## 0.7.3
 - Nazwa dodatku i tytuł w pasku bocznym: **Energia Woda** (żeby była obok „Energia Gazomierz” w kolejności alfabetycznej). Dodatek nadal obsługuje faktury GPK Szemud.
 
