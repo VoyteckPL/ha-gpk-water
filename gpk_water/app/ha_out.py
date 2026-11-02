@@ -145,8 +145,9 @@ def import_history(invoices: list[dict]):
             rows.append({"start": start.isoformat(), "state": round(fn(inv), 2), "sum": round(total, 2)})
         ws.send(json.dumps({
             "id": mid, "type": "recorder/import_statistics",
-            "metadata": {"has_mean": False, "has_sum": True, "name": name, "source": "gpk_water",
-                         "statistic_id": sid, "unit_of_measurement": unit},
+            "metadata": {"mean_type": 0, "has_sum": True, "name": name, "source": "gpk_water",
+                         "statistic_id": sid, "unit_of_measurement": unit,
+                         "unit_class": "volume" if unit == "m³" else None},
             "stats": rows,
         }))
         res = json.loads(ws.recv())

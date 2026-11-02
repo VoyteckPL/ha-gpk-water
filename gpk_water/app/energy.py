@@ -93,9 +93,9 @@ def to_rows(daily: dict, key: str, tz: ZoneInfo) -> list[dict]:
 
 
 def _meta(sid, name, unit, uclass, with_class=True):
-    m = {"has_mean": False, "has_sum": True, "name": name, "source": "gpk_water", "statistic_id": sid, "unit_of_measurement": unit}
-    if with_class and uclass:
-        m["unit_class"] = uclass
+    m = {"mean_type": 0, "has_sum": True, "name": name, "source": "gpk_water", "statistic_id": sid, "unit_of_measurement": unit}
+    if with_class:
+        m["unit_class"] = uclass  # None = brak konwertera (np. PLN)
     return m
 
 
